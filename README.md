@@ -1,4 +1,4 @@
-﻿# CourseAtlas · 南开选课导航
+# CourseAtlas · 南开选课导航
 
 > 高校模拟排课与学分路径规划器 —— 让每一分都花在刀刃上。
 
@@ -51,6 +51,8 @@
 | 毕业学分要求 | **示例配置** | 南开未公开全量培养方案，`src/constants.ts` 中 REQUIREMENTS 为演示值，可按本专业方案修改 |
 
 解析与导出脚本见 `data-nankai/`（`parse_handbook.py` 解析、`validate_courses.py` 校对、`export_app_data.py` 生成应用数据），采集过程与校验记录见 `docs/05-南开真实课程数据采集.md`。
+
+> 原始数据（选课手册 PDF、解析中间文件等）体积较大，未纳入本仓库；**如需获取，请向作者申请**。运行本项目无需这些文件（应用所需数据已在 `public/data/` 中）。
 
 ## 环境要求
 
