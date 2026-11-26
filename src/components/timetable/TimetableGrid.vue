@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue'
 import type { CourseSlot, Offering } from '@/types'
 import { CATEGORY_STYLE, MAX_PERIOD, WEEKDAYS } from '@/constants'
@@ -9,7 +9,6 @@ const props = defineProps<{ courses: Offering[] }>()
 const emit = defineEmits<{ select: [course: Offering] }>()
 
 const CELL_H = 42
-const HEADER_H = 38
 const DAYS = 7
 
 interface Block {
@@ -82,7 +81,9 @@ function blockStyle(block: Block) {
   return {
     left: `calc(${left}% + 2px)`,
     width: `calc(${width}% - 4px)`,
-    top: `${HEADER_H + block.top}px`,
+    // .tt-blocks 容器已通过 inset-top 让出表头高度，这里不能再叠加表头偏移，
+    // 否则课程块整体下移一行（错位问题由周子为在 12da05a 中发现，此处同步修复）
+    top: `${block.top + 2}px`,
     height: `${block.height - 4}px`,
     background: s.bg,
     borderColor: s.border,

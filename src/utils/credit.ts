@@ -1,14 +1,14 @@
 import type { CourseCategory, CourseSlot, Offering, SelectedCourse } from '@/types'
 import { WEEKDAYS } from '@/constants'
 
-/** 保留一位小数，规避浮点误差 */
-export function round1(n: number): number {
-  return Math.round(n * 10) / 10
+/** 学分保留两位小数，避免 0.25/0.5 学分累加产生浮点误差（精度方案采纳周子为 6e9ed3d） */
+export function round2(n: number): number {
+  return Math.round(n * 100) / 100
 }
 
 /** 已录入学分合计（未录入的不计入） */
 export function sumEnteredCredits(list: SelectedCourse[]): number {
-  return round1(list.reduce((sum, item) => sum + (item.credit ?? 0), 0))
+  return round2(list.reduce((sum, item) => sum + (item.credit ?? 0), 0))
 }
 
 /** 待补学分课程数 */
@@ -27,7 +27,7 @@ export function creditsByCategory(list: SelectedCourse[]): Record<CourseCategory
   }
   for (const item of list) {
     if (item.credit !== null)
-      acc[item.course.category] = round1(acc[item.course.category] + item.credit)
+      acc[item.course.category] = round2(acc[item.course.category] + item.credit)
   }
   return acc
 }

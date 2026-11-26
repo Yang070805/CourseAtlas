@@ -34,7 +34,7 @@ function creditsOf(category: (typeof categoryReqs.value)[number]['category']) {
         </div>
       </div>
       <div class="total-right">
-        <ProgressBar :value="earned" :max="totalReq.min" warn-when-over />
+        <ProgressBar :value="earned" :max="totalReq.min" success-when-done />
         <div class="total-status" :class="{ done }">
           <AppIcon :name="done ? 'check' : 'target'" :size="14" />
           <template v-if="done">已达到示例毕业学分要求</template>
@@ -51,7 +51,7 @@ function creditsOf(category: (typeof categoryReqs.value)[number]['category']) {
             {{ creditsOf(req.category) }} / {{ req.min }}
           </span>
         </div>
-        <ProgressBar :value="creditsOf(req.category)" :max="req.min" warn-when-over />
+        <ProgressBar :value="creditsOf(req.category)" :max="req.min" success-when-done />
         <div class="cat-note">{{ req.note }}</div>
       </div>
     </div>
@@ -121,13 +121,19 @@ function creditsOf(category: (typeof categoryReqs.value)[number]['category']) {
   min-width: 220px;
 }
 
-.total-card .progress {
+/* ProgressBar 根节点会继承父级 scope，但内部 .progress-bar 不会，需 :deep 才能覆盖
+   （作用域样式缺陷由周子为在 6e9ed3d 中发现，此处同步修复） */
+.total-card :deep(.progress) {
   background: rgba(255, 255, 255, 0.22);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-.total-card .progress-bar {
+.total-card :deep(.progress-bar) {
   background: #fff;
+}
+
+.total-card :deep(.progress-bar.done) {
+  background: #b8f5d5;
 }
 
 .total-status {

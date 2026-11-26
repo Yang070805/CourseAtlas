@@ -497,6 +497,10 @@ textarea.form-control {
   background: linear-gradient(90deg, var(--c-danger), #d9534f);
 }
 
+.progress-bar.done {
+  background: linear-gradient(90deg, var(--c-success), #38d9a9);
+}
+
 /* ---------- Toast ---------- */
 .toast-host {
   position: fixed;
