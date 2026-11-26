@@ -113,8 +113,10 @@ onBeforeUnmount(() => {
             :aria-selected="t.id === termStore.currentTermId"
             @click="pickTerm(t.semesterNo)"
           >
-            <span class="tp-sem-name">学期{{ t.semesterNo }}</span>
-            <span class="tp-sem-season">{{ t.seasonLabel }}</span>
+            <span class="tp-sem-main">
+              <span class="tp-sem-name">学期{{ t.semesterNo }}</span>
+              <span class="tp-sem-season">{{ t.seasonLabel }}</span>
+            </span>
             <span v-if="t.isCurrent" class="tp-flag">当前</span>
             <span v-else-if="t.hasData" class="tp-flag data">{{ t.courseCount }} 班</span>
             <span v-else class="tp-flag muted">无数据</span>
@@ -180,7 +182,7 @@ onBeforeUnmount(() => {
   top: calc(100% + 8px);
   right: 0;
   z-index: 80;
-  width: min(92vw, 480px);
+  width: min(92vw, 520px);
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--radius);
@@ -202,7 +204,7 @@ onBeforeUnmount(() => {
 
 .tp-body {
   display: grid;
-  grid-template-columns: 1fr 150px;
+  grid-template-columns: 1fr 190px;
   gap: 10px;
 }
 
@@ -253,8 +255,9 @@ onBeforeUnmount(() => {
 .tp-semester {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: var(--c-bg);
@@ -262,6 +265,7 @@ onBeforeUnmount(() => {
   font-size: 13.5px;
   cursor: pointer;
   text-align: left;
+  white-space: nowrap;
 }
 
 .tp-semester:hover {
@@ -278,13 +282,21 @@ onBeforeUnmount(() => {
   color: var(--c-primary);
 }
 
+.tp-sem-main {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  min-width: 0;
+}
+
 .tp-sem-name {
   font-weight: 700;
 }
 
 .tp-sem-season {
   color: var(--c-muted);
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 400;
 }
 
 .tp-flag {
@@ -292,6 +304,8 @@ onBeforeUnmount(() => {
   font-size: 11px;
   font-weight: 700;
   color: var(--c-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tp-flag.data {

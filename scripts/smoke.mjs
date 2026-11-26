@@ -299,6 +299,16 @@ async function main() {
     semTexts.length === 3 && semTexts[0].includes('秋冬') && semTexts[2].includes('暑假小学期'),
     `(${semTexts.join('|')})`,
   )
+  const semHeights = await page
+    .locator('.tp-semester')
+    .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)))
+  check(
+    '学期选项行高一致且未换行（学期3 不折行）',
+    semHeights.length === 3 &&
+      Math.max(...semHeights) - Math.min(...semHeights) <= 2 &&
+      Math.max(...semHeights) <= 58,
+    JSON.stringify(semHeights),
+  )
 
   // 选 2024-2025 学年第二学期（有数据）
   await page.locator('.tp-year', { hasText: '2024-2025' }).click()
