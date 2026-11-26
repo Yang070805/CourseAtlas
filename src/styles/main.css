@@ -1,37 +1,45 @@
 /* ============================================================
-   CourseAtlas 设计系统
-   主题变量 / 基础重置 / 通用组件样式 / 响应式框架
+   CourseAtlas 设计系统（南开紫主题）
+   - 主色 #842468：取自南开大学教务处官方标识实取样（青莲紫）
+   - 布局框架 / 通用组件 / 响应式
    ============================================================ */
 
 :root {
-  /* 颜色 */
-  --c-primary: #4c6ef5;
-  --c-primary-hover: #3b5bdb;
-  --c-primary-soft: #edf2ff;
-  --c-bg: #f4f6fb;
+  /* 南开紫主色阶 */
+  --c-primary: #842468;
+  --c-primary-hover: #6b1c53;
+  --c-primary-soft: #f7edf3;
+  --c-primary-tint: #fbf5f9;
+
+  /* 中性色（略带紫调） */
+  --c-bg: #f6f4f8;
   --c-surface: #ffffff;
-  --c-text: #1e293b;
-  --c-text-secondary: #475569;
-  --c-muted: #94a3b8;
-  --c-border: #e2e8f0;
-  --c-success: #12b76a;
-  --c-success-soft: #e6fbf1;
-  --c-warning: #f79009;
-  --c-warning-soft: #fff7e6;
-  --c-danger: #f04438;
-  --c-danger-soft: #feeceb;
+  --c-text: #2b2230;
+  --c-text-secondary: #55495e;
+  --c-muted: #9a8fa3;
+  --c-border: #e6dfe9;
+
+  /* 语义色 */
+  --c-success: #12805c;
+  --c-success-soft: #e7f6f0;
+  --c-warning: #b06a00;
+  --c-warning-soft: #fdf3e3;
+  --c-danger: #b42318;
+  --c-danger-soft: #fdeceb;
+  --c-info: #3f62a8;
+  --c-info-soft: #edf1fa;
 
   /* 圆角与阴影 */
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 16px;
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
-  --shadow: 0 1px 3px rgba(16, 24, 40, 0.07), 0 4px 16px rgba(16, 24, 40, 0.06);
-  --shadow-lg: 0 8px 30px rgba(16, 24, 40, 0.12);
+  --shadow-sm: 0 1px 2px rgba(74, 20, 58, 0.05);
+  --shadow: 0 1px 3px rgba(74, 20, 58, 0.07), 0 6px 20px rgba(74, 20, 58, 0.07);
+  --shadow-lg: 0 10px 34px rgba(74, 20, 58, 0.16);
 
   /* 尺寸 */
   --header-h: 64px;
-  --content-max: 1200px;
+  --content-max: 1240px;
   --tabbar-h: 60px;
 
   font-family:
@@ -95,7 +103,7 @@ textarea {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--c-border);
 }
@@ -107,7 +115,7 @@ textarea {
   padding: 0 20px;
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 20px;
 }
 
 .brand {
@@ -157,17 +165,56 @@ textarea {
   color: var(--c-primary);
 }
 
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .header-credit {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
+  gap: 6px;
+  padding: 6px 12px;
   border-radius: 999px;
   background: var(--c-primary-soft);
   color: var(--c-primary);
   font-weight: 600;
   font-size: 13px;
   white-space: nowrap;
+}
+
+/* 学期切换器 */
+.term-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: var(--c-surface);
+  color: var(--c-text-secondary);
+  font-size: 13px;
+}
+
+.term-select select {
+  border: none;
+  background: transparent;
+  color: var(--c-text);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 2px 0;
+  outline: none;
+  cursor: pointer;
+}
+
+.term-current-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  border-radius: 999px;
+  padding: 1px 8px;
 }
 
 .app-main {
@@ -180,7 +227,7 @@ textarea {
 .app-footer {
   border-top: 1px solid var(--c-border);
   background: var(--c-surface);
-  padding: 28px 20px calc(28px + var(--tabbar-h));
+  padding: 26px 20px calc(26px + var(--tabbar-h));
   text-align: center;
   color: var(--c-muted);
   font-size: 13px;
@@ -199,7 +246,7 @@ textarea {
   right: 0;
   z-index: 50;
   height: var(--tabbar-h);
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--c-border);
 }
@@ -231,7 +278,7 @@ textarea {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .page-title {
@@ -244,6 +291,7 @@ textarea {
   color: var(--c-text-secondary);
   margin-top: 4px;
   font-size: 14px;
+  max-width: 860px;
 }
 
 /* ---------- 卡片 ---------- */
@@ -321,7 +369,7 @@ textarea {
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #fddcdb;
+  background: #fbd9d6;
 }
 
 .btn-sm {
@@ -437,19 +485,19 @@ textarea.form-control {
 .progress-bar {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--c-primary), #748ffc);
+  background: linear-gradient(90deg, var(--c-primary), #b2549a);
   transition: width 0.4s ease;
 }
 
 .progress-bar.over {
-  background: linear-gradient(90deg, var(--c-warning), #fcc419);
+  background: linear-gradient(90deg, var(--c-warning), #d8952f);
 }
 
 .progress-bar.danger {
-  background: linear-gradient(90deg, var(--c-danger), #ff8787);
+  background: linear-gradient(90deg, var(--c-danger), #d9534f);
 }
 
-/* ---------- 提示消息 Toast ---------- */
+/* ---------- Toast ---------- */
 .toast-host {
   position: fixed;
   top: calc(var(--header-h) + 12px);
@@ -577,14 +625,52 @@ textarea.form-control {
   color: var(--c-text-secondary);
 }
 
+/* ---------- 骨架屏 ---------- */
+.skeleton-card {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  padding: 16px;
+  min-height: 210px;
+}
+
+.sk-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #efe9f1 25%, #f8f4f9 50%, #efe9f1 75%);
+  background-size: 200% 100%;
+  animation: sk 1.2s infinite;
+  margin-bottom: 10px;
+}
+
+.sk-line.w40 {
+  width: 40%;
+}
+.sk-line.w60 {
+  width: 60%;
+}
+.sk-line.w80 {
+  width: 80%;
+}
+
+@keyframes sk {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 /* ---------- 课表网格 ---------- */
 .timetable {
   display: grid;
-  grid-template-columns: 56px repeat(5, 1fr);
+  grid-template-columns: 44px repeat(7, 1fr);
   border: 1px solid var(--c-border);
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--c-surface);
+  min-width: 900px;
 }
 
 .timetable-cell {
@@ -593,15 +679,15 @@ textarea.form-control {
 }
 
 .timetable-head {
-  padding: 10px 4px;
+  padding: 8px 4px;
   text-align: center;
   font-weight: 700;
-  font-size: 14px;
-  background: #f8fafc;
+  font-size: 13.5px;
+  background: #faf7fb;
 }
 
-.timetable-head.today {
-  color: var(--c-primary);
+.timetable-head.weekend {
+  color: var(--c-warning);
 }
 
 .timetable-time {
@@ -611,29 +697,18 @@ textarea.form-control {
   padding-top: 4px;
   font-size: 11px;
   color: var(--c-muted);
-  border-right: 1px solid var(--c-border);
-  border-bottom: 1px solid var(--c-border);
-  background: #f8fafc;
-}
-
-.timetable-body {
-  display: contents;
-}
-
-.timetable-grid {
-  display: contents;
+  background: #faf7fb;
 }
 
 .course-block {
   border-radius: 6px;
   border: 1px solid transparent;
-  padding: 4px 6px;
+  padding: 3px 5px;
   overflow: hidden;
   cursor: pointer;
   transition:
     filter 0.15s,
     box-shadow 0.15s;
-  min-height: 30px;
 }
 
 .course-block:hover {
@@ -642,17 +717,17 @@ textarea.form-control {
 }
 
 .course-block .cb-name {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   line-height: 1.3;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 .course-block .cb-meta {
-  font-size: 10.5px;
+  font-size: 10px;
   opacity: 0.85;
   line-height: 1.35;
   display: -webkit-box;
@@ -663,7 +738,34 @@ textarea.form-control {
 
 .course-block.conflict {
   border-color: var(--c-danger);
+  border-style: dashed;
   box-shadow: 0 0 0 2px var(--c-danger-soft);
+}
+
+/* ---------- 提示条 ---------- */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.notice.info {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+}
+
+.notice.warning {
+  background: var(--c-warning-soft);
+  color: #7a4a00;
+}
+
+.notice.danger {
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
 }
 
 /* ---------- 响应式 ---------- */
@@ -676,7 +778,19 @@ textarea.form-control {
     display: none;
   }
 
+  .brand {
+    font-size: 16px;
+  }
+
   .brand-sub {
+    display: none;
+  }
+
+  .header-tools {
+    margin-left: auto;
+  }
+
+  .term-current-tag {
     display: none;
   }
 

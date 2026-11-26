@@ -1,67 +1,79 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Course } from '@/types'
+import type { SelectedCourse } from '@/types'
 import { CATEGORY_STYLE, WEEKDAYS } from '@/constants'
-import { slotLabel, weeksLabel } from '@/utils/credit'
+import { slotsText } from '@/utils/credit'
 
-const props = defineProps<{ courses: Course[] }>()
-
-const emit = defineEmits<{ select: [course: Course] }>()
+const props = defineProps<{ items: SelectedCourse[] }>()
 
 interface Row {
-  course: Course
+  item: SelectedCourse
   text: string
   conflict: boolean
 }
 
 const grouped = computed(() => {
   const result: Array<{ day: number; rows: Row[] }> = []
-  for (let day = 1; day <= 5; day++) {
+  for (let day = 1; day <= 7; day++) {
     const rows: Row[] = []
-    for (const course of props.courses) {
-      for (const slot of course.slots) {
-        if (slot.day !== day) continue
-        rows.push({
-          course,
-          text: `${slotLabel(slot)}（${weeksLabel(slot.weeks)}）`,
-          conflict: false,
-        })
+    for (const item of props.items) {
+      const slots = item.course.slots.filter((s) => s.day === day)
+      if (slots.length === 0) continue
+      for (const s of slots) {
+        rows.push({ item, text: slotsText([s]), conflict: false })
       }
     }
-    // 标记同一时段重复出现的行
     for (let i = 0; i < rows.length; i++) {
-      rows[i].conflict = rows.some((r, j) => j !== i && r.text === rows[i].text)
+      rows[i].conflict = rows.some(
+        (r, j) => j !== i && r.text.split('（')[0] === rows[i].text.split('（')[0],
+      )
     }
     if (rows.length) result.push({ day, rows })
   }
   return result
 })
 
-function blockStyle(course: Course) {
-  const s = CATEGORY_STYLE[course.category]
+const noTime = computed(() => props.items.filter((i) => i.course.slots.length === 0))
+
+function blockStyle(item: SelectedCourse) {
+  const s = CATEGORY_STYLE[item.course.category]
   return { background: s.bg, borderColor: s.border, color: s.color }
 }
 </script>
 
 <template>
   <div class="tt-mobile timetable-mobile">
-    <div v-if="grouped.length === 0" class="ttm-empty">课表为空，先去课程库选课吧</div>
+    <div v-if="grouped.length === 0 && noTime.length === 0" class="ttm-empty">
+      课表为空，先去课程库选课吧
+    </div>
+
     <div v-for="group in grouped" :key="group.day" class="ttm-day">
       <h3 class="ttm-day-title">{{ WEEKDAYS[group.day - 1] }}</h3>
-      <button
+      <div
         v-for="(row, i) in group.rows"
-        :key="row.course.id + i"
+        :key="row.item.id + i"
         class="ttm-row"
         :class="{ conflict: row.conflict }"
-        :style="blockStyle(row.course)"
-        @click="emit('select', row.course)"
+        :style="blockStyle(row.item)"
       >
         <div class="ttm-main">
-          <div class="ttm-name">{{ row.course.name }}</div>
-          <div class="ttm-meta">{{ row.text }} · {{ row.course.teacher }}</div>
+          <div class="ttm-name">{{ row.item.course.name }}</div>
+          <div class="ttm-meta">{{ row.text }} · {{ row.item.course.teacher }}</div>
+          <div class="ttm-meta">{{ row.item.course.room || '地点待定' }}</div>
         </div>
-        <div class="ttm-credit">{{ row.course.credit }}学分</div>
-      </button>
+        <div class="ttm-credit">{{ row.item.credit ?? '—' }} 学分</div>
+      </div>
+    </div>
+
+    <div v-if="noTime.length" class="ttm-day">
+      <h3 class="ttm-day-title">不排固定节次</h3>
+      <div v-for="item in noTime" :key="item.id" class="ttm-row" :style="blockStyle(item)">
+        <div class="ttm-main">
+          <div class="ttm-name">{{ item.course.name }}</div>
+          <div class="ttm-meta">{{ item.course.unit }} · {{ item.course.teacher }}</div>
+        </div>
+        <div class="ttm-credit">{{ item.credit ?? '—' }} 学分</div>
+      </div>
     </div>
   </div>
 </template>
@@ -75,7 +87,6 @@ function blockStyle(course: Course) {
   font-size: 15px;
   font-weight: 700;
   margin-bottom: 8px;
-  color: var(--c-text);
 }
 
 .ttm-row {
@@ -83,13 +94,10 @@ function blockStyle(course: Course) {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  width: 100%;
-  text-align: left;
   border: 1px solid;
   border-radius: var(--radius-sm);
   padding: 10px 14px;
   margin-bottom: 8px;
-  cursor: pointer;
   font-size: 14px;
 }
 

@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { useTermStore } from '@/stores/term'
 import RequirementPanel from '@/components/planner/RequirementPanel.vue'
-import PrereqNotice from '@/components/planner/PrereqNotice.vue'
-import SemesterLoadPanel from '@/components/planner/SemesterLoadPanel.vue'
+import TermOverview from '@/components/planner/TermOverview.vue'
 import CategoryBreakdown from '@/components/planner/CategoryBreakdown.vue'
+
+const termStore = useTermStore()
 </script>
 
 <template>
@@ -11,7 +13,8 @@ import CategoryBreakdown from '@/components/planner/CategoryBreakdown.vue'
       <div>
         <h1 class="page-title">学分规划</h1>
         <p class="page-subtitle">
-          对照培养方案逐类核对你已获得的学分，看看离毕业还差多少，前置课程有没有补上。
+          按学期查看选课记录与已录学分，对照培养方案查看毕业进度。学分由你在课表页按本人培养方案录入，
+          历史学期记录会一直保留。
         </p>
       </div>
     </div>
@@ -20,8 +23,8 @@ import CategoryBreakdown from '@/components/planner/CategoryBreakdown.vue'
 
     <div class="planner-grid">
       <div class="planner-col">
-        <PrereqNotice />
-        <SemesterLoadPanel />
+        <TermOverview :term-id="termStore.currentTermId" />
+        <TermOverview v-for="t in termStore.historyTerms" :key="t.id" :term-id="t.id" />
       </div>
       <CategoryBreakdown />
     </div>
@@ -30,9 +33,9 @@ import CategoryBreakdown from '@/components/planner/CategoryBreakdown.vue'
 
 <style scoped>
 .planner-grid {
-  margin-top: 16px;
+  margin-top: 14px;
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr);
+  grid-template-columns: 420px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -40,7 +43,7 @@ import CategoryBreakdown from '@/components/planner/CategoryBreakdown.vue'
 .planner-col {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 @media (max-width: 1100px) {

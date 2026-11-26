@@ -1,32 +1,30 @@
 <script setup lang="ts">
 import type { CourseCategory, SortBy, SortOrder } from '@/types'
+import { GENERAL_MODULES, SORT_OPTIONS } from '@/constants'
 import AppIcon from '@/components/common/AppIcon.vue'
 
 defineProps<{
   keyword: string
-  colleges: string[]
-  selectedColleges: string[]
+  units: string[]
+  unit: string
   categories: CourseCategory[]
   selectedCategories: CourseCategory[]
+  module: string
   sortBy: SortBy
   sortOrder: SortOrder
+  resultCount: number
+  loading: boolean
 }>()
 
 const emit = defineEmits<{
   'update:keyword': [value: string]
-  'toggle-college': [college: string]
+  'update:unit': [value: string]
+  'update:module': [value: string]
   'toggle-category': [category: CourseCategory]
   'update:sortBy': [value: SortBy]
   'toggle-order': []
   reset: []
 }>()
-
-const sortOptions: Array<{ value: SortBy; label: string }> = [
-  { value: 'semester', label: '开课学期' },
-  { value: 'credit', label: '学分' },
-  { value: 'hours', label: '学时' },
-  { value: 'name', label: '课程名称' },
-]
 </script>
 
 <template>
@@ -38,7 +36,7 @@ const sortOptions: Array<{ value: SortBy; label: string }> = [
           :value="keyword"
           type="search"
           class="search-input"
-          placeholder="搜索课程名称 / 课程编码 / 教师"
+          placeholder="搜索课程名 / 课程号 / 教师 / 教室"
           aria-label="搜索课程"
           @input="emit('update:keyword', ($event.target as HTMLInputElement).value)"
         />
@@ -52,15 +50,24 @@ const sortOptions: Array<{ value: SortBy; label: string }> = [
         </button>
       </div>
 
+      <select
+        class="form-control unit-select"
+        :value="unit"
+        aria-label="筛选开课单位"
+        @change="emit('update:unit', ($event.target as HTMLSelectElement).value)"
+      >
+        <option value="">全部开课单位</option>
+        <option v-for="u in units" :key="u" :value="u">{{ u }}</option>
+      </select>
+
       <div class="sort-box">
-        <label class="sort-label" for="sort-by">排序</label>
         <select
-          id="sort-by"
           class="form-control sort-select"
           :value="sortBy"
+          aria-label="排序方式"
           @change="emit('update:sortBy', ($event.target as HTMLSelectElement).value as SortBy)"
         >
-          <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
+          <option v-for="opt in SORT_OPTIONS" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </option>
         </select>
@@ -81,20 +88,6 @@ const sortOptions: Array<{ value: SortBy; label: string }> = [
 
     <div class="filter-groups">
       <div class="filter-group-row">
-        <span class="filter-label">学院</span>
-        <div class="chip-group">
-          <button
-            v-for="college in colleges"
-            :key="college"
-            class="chip"
-            :class="{ active: selectedColleges.includes(college) }"
-            @click="emit('toggle-college', college)"
-          >
-            {{ college }}
-          </button>
-        </div>
-      </div>
-      <div class="filter-group-row">
         <span class="filter-label">类别</span>
         <div class="chip-group">
           <button
@@ -108,14 +101,27 @@ const sortOptions: Array<{ value: SortBy; label: string }> = [
           </button>
         </div>
       </div>
+      <div class="filter-group-row">
+        <span class="filter-label">模块</span>
+        <div class="chip-group">
+          <select
+            class="form-control module-select"
+            :value="module"
+            aria-label="筛选通识模块"
+            @change="emit('update:module', ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="">全部模块（通识选修 / 体育专项）</option>
+            <option v-for="m in GENERAL_MODULES" :key="m" :value="m">{{ m }}</option>
+            <option value="专项运动训练">专项运动训练</option>
+            <option value="身体素质训练">身体素质训练</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <div class="filter-summary">
-      <slot name="count" />
-      <span
-        v-if="keyword || selectedColleges.length || selectedCategories.length"
-        class="active-count"
-      >
+      <slot name="count">{{ loading ? '加载中…' : `共 ${resultCount} 个教学班` }}</slot>
+      <span v-if="keyword || unit || selectedCategories.length || module" class="active-count">
         （已启用筛选条件）
       </span>
     </div>
@@ -130,7 +136,7 @@ const sortOptions: Array<{ value: SortBy; label: string }> = [
 .filters-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -177,16 +183,22 @@ const sortOptions: Array<{ value: SortBy; label: string }> = [
   color: var(--c-text);
 }
 
+.unit-select {
+  width: auto;
+  max-width: 240px;
+  padding: 8px 10px;
+}
+
+.module-select {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
 .sort-box {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.sort-label {
-  font-size: 13px;
-  color: var(--c-text-secondary);
-  white-space: nowrap;
 }
 
 .sort-select {
@@ -267,6 +279,10 @@ const sortOptions: Array<{ value: SortBy; label: string }> = [
 
   .search-box {
     min-width: 0;
+  }
+
+  .unit-select {
+    max-width: none;
   }
 
   .sort-box {

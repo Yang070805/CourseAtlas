@@ -1,44 +1,30 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
-import type { Course } from '@/types'
-import { SEMESTER_CREDIT_CAP } from '@/constants'
-import { courseScheduleText, semesterLabel } from '@/utils/credit'
+import type { Offering } from '@/types'
+import { capacityText, slotsText } from '@/utils/credit'
+import { useCourseStore } from '@/stores/courses'
 import { usePlannerStore } from '@/stores/planner'
+import { useTermStore } from '@/stores/term'
 import BaseTag from '@/components/common/BaseTag.vue'
 import AppIcon from '@/components/common/AppIcon.vue'
 
 const props = defineProps<{
-  course: Course | null
+  course: Offering | null
 }>()
 
 const emit = defineEmits<{
   close: []
-  add: [course: Course]
+  add: [course: Offering]
 }>()
 
+const courseStore = useCourseStore()
 const planner = usePlannerStore()
+const termStore = useTermStore()
 
-const prereqStatus = computed(() => {
-  if (!props.course) return []
-  return props.course.prerequisites.map((id) => ({
-    id,
-    course: planner.courses.find((c) => c.id === id),
-    satisfied: planner.courses.some((c) => c.id === id),
-  }))
-})
-
-const semesterLoad = computed(() => {
-  if (!props.course) return { current: 0, after: 0 }
-  const current =
-    planner.perSemester.find((s) => s.semester === props.course!.semester)?.credits ?? 0
-  return { current, after: current + props.course.credit }
-})
-
-const scheduleText = computed(() => {
-  if (!props.course) return ''
-  const text = courseScheduleText(props.course)
-  return text || '分散安排，不占用固定节次'
-})
+const reviews = computed(() => (props.course ? courseStore.reviewsFor(props.course.name) : []))
+const selected = computed(() =>
+  props.course ? planner.isSelected(termStore.currentTermId, props.course.id) : false,
+)
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
@@ -47,8 +33,7 @@ function onKeydown(e: KeyboardEvent) {
 watch(
   () => props.course,
   (c) => {
-    if (c) document.body.style.overflow = 'hidden'
-    else document.body.style.overflow = ''
+    document.body.style.overflow = c ? 'hidden' : ''
   },
 )
 
@@ -75,11 +60,13 @@ onBeforeUnmount(() => {
             <div>
               <div class="m-tags">
                 <BaseTag :category="course.category" />
-                <span class="cc-assessment">{{ course.assessment }}</span>
-                <span class="m-semester">{{ semesterLabel(course.semester) }}</span>
+                <span class="m-chip">{{ course.typeLabel }}</span>
+                <span v-if="course.sectionLabel" class="m-chip info">{{
+                  course.sectionLabel
+                }}</span>
               </div>
               <h2 class="m-name">{{ course.name }}</h2>
-              <div class="m-code">{{ course.code }}</div>
+              <div class="m-code">{{ course.code }} · {{ course.unit }}</div>
             </div>
             <button class="m-close" aria-label="关闭" @click="emit('close')">
               <AppIcon name="x" :size="18" />
@@ -87,71 +74,81 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="modal-body">
-            <p class="m-desc">{{ course.description }}</p>
-
             <div class="m-grid">
               <div class="m-item">
-                <span class="m-label">开课学院</span>
-                <span>{{ course.college }}</span>
-              </div>
-              <div class="m-item">
                 <span class="m-label">授课教师</span>
-                <span>{{ course.teacher }}</span>
+                <span>{{ course.teacher || '待定' }}</span>
               </div>
               <div class="m-item">
-                <span class="m-label">学分</span>
-                <span class="m-strong">{{ course.credit }} 学分</span>
+                <span class="m-label">上课时间</span>
+                <span>{{ slotsText(course.slots) || '不排固定节次（实践类）' }}</span>
               </div>
               <div class="m-item">
-                <span class="m-label">总学时</span>
-                <span>{{ course.hours }} 学时</span>
+                <span class="m-label">上课地点</span>
+                <span>{{ course.room || '待定' }}</span>
               </div>
+              <div class="m-item">
+                <span class="m-label">名额</span>
+                <span>{{ capacityText(course) }}</span>
+              </div>
+              <div v-if="course.module" class="m-item">
+                <span class="m-label">通识模块</span>
+                <span>{{ course.module }}</span>
+              </div>
+              <div v-if="course.remark" class="m-item">
+                <span class="m-label">备注</span>
+                <span>{{ course.remark }}</span>
+              </div>
+            </div>
+
+            <div class="notice info m-credit-notice">
+              <AppIcon name="info" :size="15" />
+              <span>
+                选课手册不提供学分。加入课表后可在「模拟课表」页按本人培养方案录入学分，学分规划页会自动汇总。
+              </span>
             </div>
 
             <div class="m-section">
               <h3 class="m-section-title">
-                <AppIcon name="clock" :size="15" />
-                上课时间
+                <AppIcon name="star" :size="15" />
+                学生课程评价
+                <span class="m-review-count">枝上攻略 · {{ reviews.length }} 条</span>
               </h3>
-              <p class="m-schedule">{{ scheduleText }}</p>
-            </div>
-
-            <div class="m-section">
-              <h3 class="m-section-title">
-                <AppIcon name="alert" :size="15" />
-                前置课程
-              </h3>
-              <p v-if="course.prerequisites.length === 0" class="m-none">无前置要求</p>
-              <ul v-else class="m-prereq">
-                <li v-for="p in prereqStatus" :key="p.id" :class="{ satisfied: p.satisfied }">
-                  <AppIcon :name="p.satisfied ? 'check' : 'x'" :size="14" />
-                  {{ p.course?.name ?? '未知课程' }}
-                  <span class="m-prereq-status">{{ p.satisfied ? '已加入课表' : '尚未加入' }}</span>
+              <p v-if="reviews.length === 0" class="m-none">
+                暂无评价。评价来自《枝上 26 秋选课攻略》（学生填写），仅覆盖部分课程。
+              </p>
+              <ul v-else class="review-list">
+                <li v-for="(r, i) in reviews" :key="i" class="review-item">
+                  <div class="rv-head">
+                    <span class="rv-teacher">{{ r.teacher || '未注明教师' }}</span>
+                    <span v-if="r.grading" class="rv-chip">{{ r.grading }}</span>
+                    <span v-if="r.score" class="rv-chip score">得分 {{ r.score }}</span>
+                  </div>
+                  <p class="rv-text">“{{ r.review }}”</p>
+                  <dl class="rv-meta">
+                    <div v-if="r.attendance">
+                      <dt>点名</dt>
+                      <dd>{{ r.attendance }}</dd>
+                    </div>
+                    <div v-if="r.tasks">
+                      <dt>平时</dt>
+                      <dd>{{ r.tasks }}</dd>
+                    </div>
+                    <div v-if="r.exam">
+                      <dt>期末</dt>
+                      <dd>{{ r.exam }}</dd>
+                    </div>
+                  </dl>
                 </li>
               </ul>
-            </div>
-
-            <div class="m-section">
-              <h3 class="m-section-title">
-                <AppIcon name="target" :size="15" />
-                学期学分占用
-              </h3>
-              <p class="m-schedule">
-                {{ semesterLabel(course.semester) }}当前已选 {{ semesterLoad.current }} 学分，
-                加入后为 {{ semesterLoad.after }} 学分（学期上限 {{ SEMESTER_CREDIT_CAP }} 学分）。
-              </p>
             </div>
           </div>
 
           <div class="modal-foot">
             <button class="btn btn-ghost" @click="emit('close')">关闭</button>
-            <button
-              class="btn btn-primary"
-              :disabled="planner.isSelected(course.id)"
-              @click="emit('add', course)"
-            >
+            <button class="btn btn-primary" :disabled="selected" @click="emit('add', course)">
               <AppIcon name="plus" :size="15" />
-              {{ planner.isSelected(course.id) ? '已在模拟课表中' : '加入模拟课表' }}
+              {{ selected ? '已在模拟课表中' : '加入模拟课表' }}
             </button>
           </div>
         </div>
@@ -165,7 +162,7 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(43, 20, 38, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -177,7 +174,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: 100%;
-  max-width: 620px;
+  max-width: 680px;
   max-height: 86vh;
   overflow-y: auto;
   display: flex;
@@ -213,6 +210,7 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 0;
   background: var(--c-surface);
+  z-index: 2;
 }
 
 .m-tags {
@@ -223,12 +221,18 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
-.m-semester {
+.m-chip {
   font-size: 12px;
-  color: var(--c-text-secondary);
-  background: var(--c-bg);
+  color: var(--c-muted);
+  border: 1px solid var(--c-border);
   border-radius: 999px;
   padding: 2px 10px;
+}
+
+.m-chip.info {
+  color: var(--c-info);
+  border-color: var(--c-info-soft);
+  background: var(--c-info-soft);
 }
 
 .m-name {
@@ -262,20 +266,10 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 
-.m-desc {
-  color: var(--c-text-secondary);
-  font-size: 14px;
-  background: var(--c-bg);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  margin-bottom: 16px;
-}
-
 .m-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-bottom: 4px;
 }
 
 .m-item {
@@ -290,9 +284,9 @@ onBeforeUnmount(() => {
   font-size: 12.5px;
 }
 
-.m-strong {
-  font-weight: 700;
-  color: var(--c-primary);
+.m-credit-notice {
+  margin-top: 14px;
+  align-items: flex-start;
 }
 
 .m-section {
@@ -307,13 +301,14 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.m-schedule {
-  font-size: 14px;
-  color: var(--c-text-secondary);
-  line-height: 1.7;
+.m-review-count {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-muted);
 }
 
 .m-none {
@@ -321,35 +316,76 @@ onBeforeUnmount(() => {
   font-size: 13.5px;
 }
 
-.m-prereq {
+.review-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
+  gap: 10px;
 }
 
-.m-prereq li {
+.review-item {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  background: #fdfbfc;
+}
+
+.rv-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: var(--c-danger);
-  background: var(--c-danger-soft);
-  border-radius: var(--radius-sm);
-  padding: 6px 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
 }
 
-.m-prereq li.satisfied {
-  color: var(--c-success);
-  background: var(--c-success-soft);
+.rv-teacher {
+  font-weight: 700;
+  font-size: 13.5px;
 }
 
-.m-prereq-status {
-  margin-left: auto;
+.rv-chip {
   font-size: 12px;
-  opacity: 0.85;
+  color: var(--c-text-secondary);
+  background: var(--c-bg);
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+.rv-chip.score {
+  color: #8a5a00;
+  background: var(--c-warning-soft);
+}
+
+.rv-text {
+  font-size: 13.5px;
+  color: var(--c-text-secondary);
+  line-height: 1.7;
+}
+
+.rv-meta {
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--c-muted);
+}
+
+.rv-meta div {
+  display: flex;
+  gap: 8px;
+}
+
+.rv-meta dt {
+  flex-shrink: 0;
+  color: var(--c-text-secondary);
+  font-weight: 600;
+}
+
+.rv-meta dd {
+  margin: 0;
 }
 
 .modal-foot {

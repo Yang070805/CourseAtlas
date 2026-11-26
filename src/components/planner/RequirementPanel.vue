@@ -8,56 +8,47 @@ import AppIcon from '@/components/common/AppIcon.vue'
 const planner = usePlannerStore()
 
 const totalReq = computed(() => REQUIREMENTS.find((r) => r.category === '总计')!)
-
 const categoryReqs = computed(() => REQUIREMENTS.filter((r) => r.category !== '总计'))
 
-const totalGap = computed(() =>
-  Math.max(0, Math.round((totalReq.value.min - planner.totalCredits) * 10) / 10),
-)
-
-const totalDone = computed(() => planner.totalCredits >= totalReq.value.min)
-
-const allCategoryDone = computed(() =>
-  categoryReqs.value.every((r) => (planner.creditsByCategory[r.category] ?? 0) >= r.min),
-)
+const earned = computed(() => planner.allEnteredCredits)
+const gap = computed(() => Math.max(0, Math.round((totalReq.value.min - earned.value) * 10) / 10))
+const done = computed(() => earned.value >= totalReq.value.min)
 
 function creditsOf(category: (typeof categoryReqs.value)[number]['category']) {
-  return planner.creditsByCategory[category] ?? 0
+  return planner.creditsByCategoryAll[category] ?? 0
 }
 </script>
 
 <template>
-  <section aria-label="学分要求进度">
-    <!-- 总学分卡片 -->
+  <section aria-label="毕业学分进度（示例要求）">
     <div class="card total-card">
       <div class="total-left">
         <div class="total-icon">
           <AppIcon name="graduation" :size="26" />
         </div>
         <div class="total-text">
-          <div class="total-label">毕业总学分</div>
+          <div class="total-label">已录入学分（全部学期）</div>
           <div class="total-value">
-            {{ planner.totalCredits }} <span class="total-max">/ {{ totalReq.min }} 学分</span>
+            {{ earned }} <span class="total-max">/ {{ totalReq.min }} 学分（示例）</span>
           </div>
         </div>
       </div>
       <div class="total-right">
-        <ProgressBar :value="planner.totalCredits" :max="totalReq.min" warn-when-over />
-        <div class="total-status" :class="{ done: totalDone }">
-          <AppIcon :name="totalDone ? 'check' : 'target'" :size="14" />
-          <template v-if="totalDone">已满足毕业总学分要求</template>
-          <template v-else>距毕业总学分要求还差 {{ totalGap }} 学分</template>
+        <ProgressBar :value="earned" :max="totalReq.min" warn-when-over />
+        <div class="total-status" :class="{ done }">
+          <AppIcon :name="done ? 'check' : 'target'" :size="14" />
+          <template v-if="done">已达到示例毕业学分要求</template>
+          <template v-else>距示例毕业要求还差 {{ gap }} 学分</template>
         </div>
       </div>
     </div>
 
-    <!-- 分类要求 -->
     <div class="cat-grid">
       <div v-for="req in categoryReqs" :key="req.category" class="card cat-card">
         <div class="cat-head">
           <span class="cat-name">{{ req.label }}</span>
           <span class="cat-num" :class="{ done: creditsOf(req.category) >= req.min }">
-            {{ creditsOf(req.category) }} / {{ req.min }} 学分
+            {{ creditsOf(req.category) }} / {{ req.min }}
           </span>
         </div>
         <ProgressBar :value="creditsOf(req.category)" :max="req.min" warn-when-over />
@@ -65,9 +56,15 @@ function creditsOf(category: (typeof categoryReqs.value)[number]['category']) {
       </div>
     </div>
 
-    <div v-if="totalDone && allCategoryDone" class="finish-banner">
-      <AppIcon name="check" :size="16" />
-      恭喜！已满足全部培养方案学分要求，可以安心准备毕业啦。
+    <div class="notice warning req-disclaimer">
+      <AppIcon name="info" :size="15" />
+      <span>
+        南开大学未公开全量培养方案，以上学分要求为<b>示例配置</b>（不代表任何专业的真实要求）， 可在
+        <code>src/constants.ts</code> 的 REQUIREMENTS 中按本专业培养方案修改。
+        <template v-if="planner.allPendingCount > 0">
+          当前还有 <b>{{ planner.allPendingCount }}</b> 门已选课程未录入学分，未计入统计。
+        </template>
+      </span>
     </div>
   </section>
 </template>
@@ -80,10 +77,10 @@ function creditsOf(category: (typeof categoryReqs.value)[number]['category']) {
   gap: 24px;
   flex-wrap: wrap;
   padding: 22px 26px;
-  background: linear-gradient(135deg, #4c6ef5 0%, #6741d9 100%);
+  background: linear-gradient(135deg, #842468 0%, #a63a8a 100%);
   border: none;
   color: #fff;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .total-left {
@@ -139,11 +136,10 @@ function creditsOf(category: (typeof categoryReqs.value)[number]['category']) {
   display: flex;
   align-items: center;
   gap: 6px;
-  opacity: 0.95;
 }
 
 .total-status.done {
-  color: #b8f5d5;
+  color: #f5e1ee;
 }
 
 .cat-grid {
@@ -167,7 +163,7 @@ function creditsOf(category: (typeof categoryReqs.value)[number]['category']) {
 .cat-num {
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--c-warning);
+  color: #8a5a00;
 }
 
 .cat-num.done {
@@ -180,17 +176,16 @@ function creditsOf(category: (typeof categoryReqs.value)[number]['category']) {
   color: var(--c-muted);
 }
 
-.finish-banner {
-  margin-top: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--c-success-soft);
-  color: var(--c-success);
-  border: 1px solid #a6e9cc;
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  font-weight: 600;
+.req-disclaimer {
+  margin-top: 12px;
+  align-items: flex-start;
+}
+
+.req-disclaimer code {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 12px;
 }
 
 @media (max-width: 768px) {

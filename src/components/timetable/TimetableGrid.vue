@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Course, CourseSlot } from '@/types'
-import { CATEGORY_STYLE, MAX_PERIOD, PERIOD_TIMES, WEEKDAYS } from '@/constants'
+import type { CourseSlot, Offering } from '@/types'
+import { CATEGORY_STYLE, MAX_PERIOD, WEEKDAYS } from '@/constants'
 import { slotLabel, weeksLabel } from '@/utils/credit'
 
-const props = defineProps<{ courses: Course[] }>()
+const props = defineProps<{ courses: Offering[] }>()
 
-const emit = defineEmits<{ select: [course: Course] }>()
+const emit = defineEmits<{ select: [course: Offering] }>()
 
-const CELL_H = 48
-const HEADER_H = 42
+const CELL_H = 42
+const HEADER_H = 38
+const DAYS = 7
 
 interface Block {
-  course: Course
+  course: Offering
   slot: CourseSlot
   day: number
   top: number
@@ -21,10 +22,10 @@ interface Block {
   overlapCount: number
 }
 
-/** 把已选课程展开为课表块，并按“天”分组、计算同一天内的重叠情况 */
+/** 展开为课表块，按天分组并计算重叠泳道 */
 const dayGroups = computed(() => {
   const groups: Array<{ day: number; blocks: Block[] }> = []
-  for (let day = 1; day <= 5; day++) {
+  for (let day = 1; day <= DAYS; day++) {
     const raw: Block[] = []
     for (const course of props.courses) {
       for (const slot of course.slots) {
@@ -45,15 +46,13 @@ const dayGroups = computed(() => {
     }
     raw.sort((a, b) => a.slot.start - b.slot.start || a.slot.end - b.slot.end)
 
-    // 1) 按传递重叠切分连通分量（A 与 B 重叠、B 与 C 重叠 → 同分量）
+    // 传递重叠 → 连通分量 → 贪心泳道
     const components: Block[][] = []
     for (const block of raw) {
       const last = components[components.length - 1]
       if (last && last.some((b) => b.slot.end >= block.slot.start)) last.push(block)
       else components.push([block])
     }
-
-    // 2) 分量内贪心分配泳道：每个块放入第一个已空闲的泳道
     for (const comp of components) {
       const laneEnds: number[] = []
       for (const block of comp) {
@@ -66,8 +65,8 @@ const dayGroups = computed(() => {
         }
         block.overlapIndex = lane
       }
-      const lanesCount = laneEnds.length
-      for (const block of comp) block.overlapCount = lanesCount
+      const lanes = laneEnds.length
+      for (const block of comp) block.overlapCount = lanes
     }
 
     groups.push({ day, blocks: raw })
@@ -76,64 +75,55 @@ const dayGroups = computed(() => {
 })
 
 function blockStyle(block: Block) {
-  const categoryStyle = CATEGORY_STYLE[block.course.category]
-  const dayWidth = 100 / 5
+  const s = CATEGORY_STYLE[block.course.category]
+  const dayWidth = 100 / DAYS
   const left = (block.day - 1) * dayWidth + block.overlapIndex * (dayWidth / block.overlapCount)
   const width = dayWidth / block.overlapCount
   return {
-    left: `calc(${left}% + 3px)`,
-    width: `calc(${width}% - 6px)`,
+    left: `calc(${left}% + 2px)`,
+    width: `calc(${width}% - 4px)`,
     top: `${HEADER_H + block.top}px`,
-    height: `${block.height - 5}px`,
-    background: categoryStyle.bg,
-    borderColor: categoryStyle.border,
-    color: categoryStyle.color,
+    height: `${block.height - 4}px`,
+    background: s.bg,
+    borderColor: s.border,
+    color: s.color,
   }
 }
-
-const isConflict = (block: Block) => block.overlapCount > 1
 </script>
 
 <template>
   <div class="tt-wrap">
-    <div class="timetable" role="grid" aria-label="周课表（桌面端网格视图）">
-      <!-- 表头 -->
+    <div class="timetable" role="grid" aria-label="周课表（桌面端网格视图，周一至周日 1-14 节）">
       <div class="timetable-head" aria-hidden="true" />
       <div
         v-for="(dayName, i) in WEEKDAYS"
         :key="dayName"
         class="timetable-head timetable-cell"
+        :class="{ weekend: i >= 5 }"
         role="columnheader"
       >
         {{ dayName }}
-        <span class="tt-day-index">{{ i + 1 }}</span>
       </div>
 
-      <!-- 时间轴 + 网格单元格 -->
       <template v-for="period in MAX_PERIOD" :key="period">
-        <div class="timetable-time timetable-cell" role="rowheader">
-          {{ period }}<br />{{ PERIOD_TIMES[period - 1] }}
-        </div>
-        <div v-for="day in 5" :key="day" class="timetable-cell tt-cell" />
+        <div class="timetable-time timetable-cell" role="rowheader">{{ period }}</div>
+        <div v-for="day in DAYS" :key="day" class="timetable-cell tt-cell" />
       </template>
 
-      <!-- 课程块 -->
       <div class="tt-blocks">
         <div v-for="group in dayGroups" :key="`g${group.day}`" class="tt-day-layer">
           <button
             v-for="block in group.blocks"
             :key="block.course.id + block.slot.start + block.slot.end"
             class="course-block tt-block"
-            :class="{ conflict: isConflict(block) }"
+            :class="{ conflict: block.overlapCount > 1 }"
             :style="blockStyle(block)"
-            :title="`${block.course.name}｜${slotLabel(block.slot)}（${weeksLabel(block.slot.weeks)}）${isConflict(block) ? '｜存在时间冲突' : ''}`"
+            :title="`${block.course.name}｜${slotLabel(block.slot)}（${weeksLabel(block.slot.weeks)}）｜${block.course.teacher}｜${block.course.room || '地点待定'}${block.overlapCount > 1 ? '｜存在时间冲突' : ''}`"
             @click="emit('select', block.course)"
           >
             <div class="cb-name">{{ block.course.name }}</div>
-            <div class="cb-meta">
-              {{ slotLabel(block.slot) }}（{{ weeksLabel(block.slot.weeks) }}）
-            </div>
-            <div class="cb-meta">@{{ block.course.teacher }}</div>
+            <div class="cb-meta">{{ block.course.room || '地点待定' }}</div>
+            <div class="cb-meta">{{ block.course.teacher }}</div>
           </button>
         </div>
       </div>
@@ -148,36 +138,23 @@ const isConflict = (block: Block) => block.overlapCount > 1
 
 .timetable {
   position: relative;
-  grid-template-rows: var(--tt-header) repeat(12, var(--tt-cell));
-  --tt-header: 42px;
-  --tt-cell: 48px;
-}
-
-.tt-day-index {
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--c-muted);
+  grid-template-rows: 38px repeat(14, 42px);
 }
 
 .tt-cell {
-  min-height: var(--tt-cell);
+  min-height: 42px;
   background: var(--c-surface);
 }
 
 .tt-blocks {
   position: absolute;
-  inset: var(--tt-header) 0 0 56px;
+  inset: 38px 0 0 44px;
   pointer-events: none;
 }
 
 .tt-day-layer {
   position: absolute;
   inset: 0;
-  border: none;
-  background: none;
-  padding: 0;
-  pointer-events: none;
 }
 
 .tt-block {
@@ -187,15 +164,11 @@ const isConflict = (block: Block) => block.overlapCount > 1
   text-align: left;
   border-width: 1px;
   border-style: solid;
-}
-
-.tt-block.conflict {
-  border-color: var(--c-danger);
-  border-style: dashed;
-  box-shadow: 0 0 0 2px var(--c-danger-soft);
+  padding: 2px 4px;
 }
 
 .tt-block .cb-meta {
   -webkit-line-clamp: 1;
+  font-size: 9.5px;
 }
 </style>

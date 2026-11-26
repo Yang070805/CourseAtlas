@@ -1,79 +1,126 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import type { AddResult, Course, SelectedCourse } from '@/types'
-import { SEMESTER_CREDIT_CAP, STORAGE_KEY } from '@/constants'
-import {
-  exceedsCreditCap,
-  findConflict,
-  missingPrerequisites,
-  semesterCredits,
-} from '@/utils/conflict'
-import { creditsByCategory, creditsPerSemester, totalCredits } from '@/utils/credit'
+import type { AddResult, Offering, SelectedCourse } from '@/types'
+import { SEMESTER_CREDIT_CAP, STORAGE_KEY_SELECTED } from '@/constants'
+import { findConflict } from '@/utils/conflict'
+import { countPendingCredits, creditsByCategory, sumEnteredCredits } from '@/utils/credit'
 import { loadJSON, removeKey, saveJSON } from '@/utils/storage'
-import { useCourseStore } from './courses'
+
+interface TermStats {
+  count: number
+  entered: number
+  pending: number
+  overCap: boolean
+}
 
 export const usePlannerStore = defineStore('planner', () => {
-  // ---- 状态（从 localStorage 恢复，实现数据持久化）----
-  const stored = loadJSON<SelectedCourse[]>(STORAGE_KEY)
+  // ---- 状态：全部学期的选课记录（localStorage 恢复）----
+  const stored = loadJSON<SelectedCourse[]>(STORAGE_KEY_SELECTED)
   const selected = ref<SelectedCourse[]>(Array.isArray(stored) ? stored : [])
 
+  function persist() {
+    saveJSON(STORAGE_KEY_SELECTED, selected.value)
+  }
+
   // ---- 派生 ----
-  const courses = computed<Course[]>(() => selected.value.map((s) => s.course))
+  const byTerm = computed(() => {
+    const map = new Map<string, SelectedCourse[]>()
+    for (const item of selected.value) {
+      const list = map.get(item.termId) ?? []
+      list.push(item)
+      map.set(item.termId, list)
+    }
+    for (const list of map.values()) list.sort((a, b) => a.addedAt - b.addedAt)
+    return map
+  })
 
-  const totalCreditsValue = computed(() => totalCredits(courses.value))
+  function coursesOfTerm(termId: string): Offering[] {
+    return (byTerm.value.get(termId) ?? []).map((s) => s.course)
+  }
 
-  const creditsByCat = computed(() => creditsByCategory(courses.value))
+  function termStats(termId: string): TermStats {
+    const list = byTerm.value.get(termId) ?? []
+    const entered = sumEnteredCredits(list)
+    return {
+      count: list.length,
+      entered,
+      pending: countPendingCredits(list),
+      overCap: entered > SEMESTER_CREDIT_CAP,
+    }
+  }
 
-  const perSemester = computed(() => creditsPerSemester(courses.value))
+  /** 全部学期合计（按录入的学分统计，用于培养方案进度） */
+  const allEnteredCredits = computed(() => sumEnteredCredits(selected.value))
+  const allPendingCount = computed(() => countPendingCredits(selected.value))
+  const creditsByCategoryAll = computed(() => creditsByCategory(selected.value))
+  const pendingItems = computed(() => selected.value.filter((s) => s.credit === null))
 
-  const selectedIds = computed(() => new Set(selected.value.map((s) => s.id)))
-
-  /** 已选课程之间的时间冲突对（正常添加流程会拦截，这里兜底展示） */
-  const conflictPairs = computed(() => {
-    const pairs: Array<{ a: Course; b: Course }> = []
-    const list = courses.value
+  function conflictsOfTerm(termId: string): Array<{ a: Offering; b: Offering }> {
+    const list = coursesOfTerm(termId)
+    const pairs: Array<{ a: Offering; b: Offering }> = []
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         if (findConflict(list[i], [list[j]])) pairs.push({ a: list[i], b: list[j] })
       }
     }
     return pairs
-  })
-
-  /** 前置要求未满足的已选课程 */
-  const prereqWarnings = computed(() => {
-    const catalog = useCourseStore().allCourses
-    return missingPrerequisites(courses.value, catalog)
-  })
-
-  // ---- 动作 ----
-  function persist() {
-    saveJSON(STORAGE_KEY, selected.value)
   }
 
-  function addCourse(course: Course, source: 'catalog' | 'custom' = 'catalog'): AddResult {
-    if (selectedIds.value.has(course.id)) {
+  // ---- 动作 ----
+  function makeId(termId: string, courseId: string) {
+    return `${termId}:${courseId}`
+  }
+
+  function isSelected(termId: string, courseId: string): boolean {
+    const id = makeId(termId, courseId)
+    return selected.value.some((s) => s.id === id)
+  }
+
+  function addCourse(course: Offering, termId: string): AddResult {
+    const id = makeId(termId, course.id)
+    if (selected.value.some((s) => s.id === id)) {
       return { ok: false, reason: 'duplicate' }
     }
-    const conflict = findConflict(course, courses.value)
+    const conflict = findConflict(course, coursesOfTerm(termId))
     if (conflict) {
       return { ok: false, reason: 'conflict', conflictName: conflict.name }
     }
-    if (exceedsCreditCap(course, courses.value)) {
-      return {
-        ok: false,
-        reason: 'credit-cap',
-        detail: {
-          semester: course.semester,
-          selected: semesterCredits(courses.value, course.semester),
-          cap: SEMESTER_CREDIT_CAP,
-        },
-      }
-    }
-    selected.value.push({ id: course.id, course, source, addedAt: Date.now() })
+    selected.value.push({
+      id,
+      termId,
+      course,
+      credit: null,
+      source: 'catalog',
+      addedAt: Date.now(),
+    })
     persist()
     return { ok: true }
+  }
+
+  /** 自定义课程（学分必填） */
+  function addCustomCourse(course: Offering, termId: string, credit: number): AddResult {
+    const conflict = findConflict(course, coursesOfTerm(termId))
+    if (conflict) {
+      return { ok: false, reason: 'conflict', conflictName: conflict.name }
+    }
+    selected.value.push({
+      id: makeId(termId, course.id),
+      termId,
+      course,
+      credit,
+      source: 'custom',
+      addedAt: Date.now(),
+    })
+    persist()
+    return { ok: true }
+  }
+
+  function setCredit(id: string, credit: number | null) {
+    const item = selected.value.find((s) => s.id === id)
+    if (!item) return
+    item.credit = credit
+    persist()
   }
 
   function removeCourse(id: string) {
@@ -84,26 +131,27 @@ export const usePlannerStore = defineStore('planner', () => {
     }
   }
 
-  function clearAll() {
-    selected.value = []
-    removeKey(STORAGE_KEY)
-  }
-
-  function isSelected(id: string): boolean {
-    return selectedIds.value.has(id)
+  function clearTerm(termId: string) {
+    selected.value = selected.value.filter((s) => s.termId !== termId)
+    if (selected.value.length === 0) removeKey(STORAGE_KEY_SELECTED)
+    else persist()
   }
 
   return {
     selected,
-    courses,
-    totalCredits: totalCreditsValue,
-    creditsByCategory: creditsByCat,
-    perSemester,
-    conflictPairs,
-    prereqWarnings,
-    addCourse,
-    removeCourse,
-    clearAll,
+    byTerm,
+    coursesOfTerm,
+    termStats,
+    allEnteredCredits,
+    allPendingCount,
+    creditsByCategoryAll,
+    pendingItems,
+    conflictsOfTerm,
     isSelected,
+    addCourse,
+    addCustomCourse,
+    setCredit,
+    removeCourse,
+    clearTerm,
   }
 })

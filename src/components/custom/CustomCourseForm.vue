@@ -1,37 +1,29 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import type { Assessment, Course, CourseCategory } from '@/types'
-import { MAX_PERIOD, MAX_WEEK, SEMESTER_CREDIT_CAP } from '@/constants'
-import { exceedsCreditCap, findConflict, semesterCredits } from '@/utils/conflict'
-import { semesterLabel } from '@/utils/credit'
+import type { CourseCategory, Offering } from '@/types'
+import { ALL_CATEGORIES, MAX_PERIOD, WEEKDAYS } from '@/constants'
+import { findConflict } from '@/utils/conflict'
 import { usePlannerStore } from '@/stores/planner'
+import { useTermStore } from '@/stores/term'
 import { useToast } from '@/composables/useToast'
 import AppIcon from '@/components/common/AppIcon.vue'
 
 const router = useRouter()
 const planner = usePlannerStore()
+const termStore = useTermStore()
 const toast = useToast()
 
-const categories: CourseCategory[] = [
-  '通识必修',
-  '通识选修',
-  '学科基础',
-  '专业必修',
-  '专业选修',
-  '实践环节',
-]
-const assessments: Assessment[] = ['考试', '考查']
+const periodOptions = computed(() => Array.from({ length: MAX_PERIOD }, (_, i) => i + 1))
+const weekOptions = computed(() => Array.from({ length: 18 }, (_, i) => i + 1))
 
 interface FormState {
   name: string
-  college: string
+  unit: string
   category: CourseCategory | ''
-  credit: string
-  hours: string
-  assessment: Assessment
-  semester: string
   teacher: string
+  credit: string
+  room: string
   day: string
   startPeriod: string
   endPeriod: string
@@ -42,13 +34,11 @@ interface FormState {
 
 const form = reactive<FormState>({
   name: '',
-  college: '',
+  unit: '',
   category: '',
-  credit: '',
-  hours: '',
-  assessment: '考查',
-  semester: '',
   teacher: '',
+  credit: '',
+  room: '',
   day: '',
   startPeriod: '',
   endPeriod: '',
@@ -62,18 +52,7 @@ type Errors = Partial<Record<keyof FormState, string>>
 const errors = reactive<Errors>({})
 const touched = reactive<Partial<Record<keyof FormState, boolean>>>({})
 const submitted = ref(false)
-
-const semesterOptions = computed(() => Array.from({ length: 8 }, (_, i) => i + 1))
-const dayOptions = ['周一', '周二', '周三', '周四', '周五']
-const periodOptions = computed(() => Array.from({ length: MAX_PERIOD }, (_, i) => i + 1))
-const weekOptions = computed(() => Array.from({ length: MAX_WEEK }, (_, i) => i + 1))
-
-/** 全局冲突/学分校验结果（与表单字段校验分开展示） */
 const globalError = ref('')
-
-function num(v: string): number {
-  return Number(v)
-}
 
 function validateField(field: keyof FormState): string {
   const value = form[field]
@@ -83,27 +62,19 @@ function validateField(field: keyof FormState): string {
       if (value.trim().length < 2 || value.trim().length > 30) return '课程名称长度需在 2-30 字之间'
       return ''
     }
-    case 'college':
-      return value.trim() ? '' : '请输入开课学院'
+    case 'unit':
+      return value.trim() ? '' : '请输入开课单位 / 学院'
     case 'category':
       return value ? '' : '请选择课程类别'
-    case 'credit': {
-      if (value === '') return '请输入学分'
-      const c = num(value)
-      if (!Number.isFinite(c) || c < 0.5 || c > 10) return '学分需在 0.5-10 之间'
-      if (Math.round(c * 2) !== c * 2) return '学分需为 0.5 的整数倍'
-      return ''
-    }
-    case 'hours': {
-      if (value === '') return '请输入总学时'
-      const h = num(value)
-      if (!Number.isInteger(h) || h < 1 || h > 400) return '学时需为 1-400 的整数'
-      return ''
-    }
-    case 'semester':
-      return value ? '' : '请选择开课学期'
     case 'teacher':
       return value.trim() ? '' : '请输入授课教师'
+    case 'credit': {
+      if (value === '') return '请输入学分（依据本人培养方案）'
+      const c = Number(value)
+      if (!Number.isFinite(c) || c < 0.5 || c > 20) return '学分需在 0.5-20 之间'
+      if (Math.round(c * 10) !== c * 10) return '学分最多一位小数'
+      return ''
+    }
     case 'day':
       return value ? '' : '请选择上课星期'
     case 'startPeriod':
@@ -121,11 +92,14 @@ function validateAll(): boolean {
   ;(Object.keys(form) as Array<keyof FormState>).forEach((k) => {
     errors[k] = validateField(k)
   })
-  // 跨字段校验
-  if (!errors.startPeriod && !errors.endPeriod && num(form.startPeriod) > num(form.endPeriod)) {
+  if (
+    !errors.startPeriod &&
+    !errors.endPeriod &&
+    Number(form.startPeriod) > Number(form.endPeriod)
+  ) {
     errors.endPeriod = `结束节次不能早于起始节次（起始为第 ${form.startPeriod} 节）`
   }
-  if (!errors.startWeek && !errors.endWeek && num(form.startWeek) > num(form.endWeek)) {
+  if (!errors.startWeek && !errors.endWeek && Number(form.startWeek) > Number(form.endWeek)) {
     errors.endWeek = `结束周不能早于起始周（起始为第 ${form.startWeek} 周）`
   }
   return Object.values(errors).every((e) => !e)
@@ -136,39 +110,44 @@ function markTouched(field: keyof FormState) {
   if (submitted.value) errors[field] = validateField(field)
 }
 
-/** 构造候选课程对象 */
-function buildCourse(): Course {
+/** 输入时实时清掉已修正字段的错误，避免错误提示突然消失引起按钮位移 */
+function onFieldInput(field: keyof FormState) {
+  if (submitted.value && errors[field]) errors[field] = validateField(field)
+}
+
+function buildCourse(): Offering {
+  const ts = Date.now()
   return {
-    id: `custom-${Date.now()}`,
-    code: `CUSTOM-${Date.now().toString().slice(-6)}`,
+    id: `custom-${ts}`,
+    code: `CUSTOM-${String(ts).slice(-6)}`,
     name: form.name.trim(),
-    college: form.college.trim(),
+    unit: form.unit.trim(),
     category: form.category as CourseCategory,
-    credit: num(form.credit),
-    hours: num(form.hours),
-    assessment: form.assessment,
-    semester: num(form.semester),
+    typeLabel: '自定义课程',
+    module: '',
     teacher: form.teacher.trim(),
     slots: [
       {
-        day: num(form.day),
-        start: num(form.startPeriod),
-        end: num(form.endPeriod),
+        day: Number(form.day),
+        start: Number(form.startPeriod),
+        end: Number(form.endPeriod),
         weeks: Array.from(
-          { length: num(form.endWeek) - num(form.startWeek) + 1 },
-          (_, i) => num(form.startWeek) + i,
+          { length: Number(form.endWeek) - Number(form.startWeek) + 1 },
+          (_, i) => Number(form.startWeek) + i,
         ),
       },
     ],
-    prerequisites: [],
-    description: form.description.trim() || '自定义添加的课程（校外课程 / 重修课程）。',
+    room: form.room.trim(),
+    capacity: null,
+    crossCapacity: null,
+    sectionLabel: '',
+    remark: '',
   }
 }
 
 function onSubmit() {
   submitted.value = true
   globalError.value = ''
-  // 提交时将所有字段标记为已触碰，确保错误信息全部展示
   ;(Object.keys(form) as Array<keyof FormState>).forEach((k) => {
     touched[k] = true
   })
@@ -178,26 +157,19 @@ function onSubmit() {
   }
 
   const course = buildCourse()
+  const termId = termStore.currentTermId
 
-  // 与已选课程的时间冲突检测（仅同学期课程参与比较）
-  const conflict = findConflict(course, planner.courses)
+  const conflict = findConflict(course, planner.byTerm.get(termId)?.map((s) => s.course) ?? [])
   if (conflict) {
     globalError.value = `《${course.name}》与已选课程《${conflict.name}》上课时间冲突，无法提交。请调整上课时间或先移除冲突课程。`
     toast.push('error', `提交失败：与《${conflict.name}》时间冲突`)
     return
   }
 
-  // 学期学分上限校验
-  if (exceedsCreditCap(course, planner.courses)) {
-    const current = semesterCredits(planner.courses, course.semester)
-    globalError.value = `第${course.semester}学期当前已选 ${current} 学分，加入本课程后将超过学期上限 ${SEMESTER_CREDIT_CAP} 学分。`
-    toast.push('error', '提交失败：学期学分超过上限')
-    return
-  }
-
-  const result = planner.addCourse(course, 'custom')
+  const result = planner.addCustomCourse(course, termId, Number(form.credit))
   if (!result.ok) {
-    globalError.value = '添加失败，请稍后重试。'
+    globalError.value =
+      result.reason === 'conflict' ? '提交失败：时间冲突' : '添加失败，请稍后重试。'
     return
   }
 
@@ -209,13 +181,11 @@ function onSubmit() {
 function resetForm() {
   Object.assign(form, {
     name: '',
-    college: '',
+    unit: '',
     category: '',
-    credit: '',
-    hours: '',
-    assessment: '考查',
-    semester: '',
     teacher: '',
+    credit: '',
+    room: '',
     day: '',
     startPeriod: '',
     endPeriod: '',
@@ -237,7 +207,9 @@ function resetForm() {
       <div>
         <h2>添加自定义课程</h2>
         <p>
-          适用于培养方案外的课程：校外课程、重修课程或个性化学习项目。提交前会校验表单、时间冲突与学期学分上限。
+          适用于课程库之外的教学班：校外课程、重修课程、特色班、实验/实践课等。 提交到「{{
+            termStore.currentTerm.label
+          }}」，提交前会校验表单与时间冲突。
         </p>
       </div>
     </div>
@@ -252,27 +224,29 @@ function resetForm() {
         type="text"
         class="form-control"
         :class="{ invalid: errors.name && touched.name }"
-        placeholder="例如：Python 数据分析实战"
+        placeholder="例如：高级语言程序设计 2-2"
         maxlength="30"
         @blur="markTouched('name')"
+        @input="onFieldInput('name')"
       />
       <div v-if="errors.name && touched.name" class="form-error">{{ errors.name }}</div>
     </div>
 
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label" for="f-college">开课学院<span class="required">*</span></label>
+        <label class="form-label" for="f-unit">开课单位<span class="required">*</span></label>
         <input
-          id="f-college"
-          v-model="form.college"
+          id="f-unit"
+          v-model="form.unit"
           type="text"
           class="form-control"
-          :class="{ invalid: errors.college && touched.college }"
-          placeholder="例如：在线教育平台"
+          :class="{ invalid: errors.unit && touched.unit }"
+          placeholder="例如：计算机学院"
           maxlength="20"
-          @blur="markTouched('college')"
+          @blur="markTouched('unit')"
+          @input="onFieldInput('unit')"
         />
-        <div v-if="errors.college && touched.college" class="form-error">{{ errors.college }}</div>
+        <div v-if="errors.unit && touched.unit" class="form-error">{{ errors.unit }}</div>
       </div>
       <div class="form-group">
         <label class="form-label" for="f-teacher">授课教师<span class="required">*</span></label>
@@ -282,9 +256,10 @@ function resetForm() {
           type="text"
           class="form-control"
           :class="{ invalid: errors.teacher && touched.teacher }"
-          placeholder="例如：周老师"
+          placeholder="例如：张老师"
           maxlength="20"
           @blur="markTouched('teacher')"
+          @input="onFieldInput('teacher')"
         />
         <div v-if="errors.teacher && touched.teacher" class="form-error">{{ errors.teacher }}</div>
       </div>
@@ -300,29 +275,13 @@ function resetForm() {
           v-model="form.category"
           class="form-control"
           :class="{ invalid: errors.category && touched.category }"
-          @blur="markTouched('category')"
+          @change="markTouched('category')"
         >
           <option value="" disabled>请选择类别</option>
-          <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+          <option v-for="c in ALL_CATEGORIES" :key="c" :value="c">{{ c }}</option>
         </select>
         <div v-if="errors.category && touched.category" class="form-error">
           {{ errors.category }}
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="f-semester">开课学期<span class="required">*</span></label>
-        <select
-          id="f-semester"
-          v-model="form.semester"
-          class="form-control"
-          :class="{ invalid: errors.semester && touched.semester }"
-          @blur="markTouched('semester')"
-        >
-          <option value="" disabled>请选择学期</option>
-          <option v-for="s in semesterOptions" :key="s" :value="s">{{ semesterLabel(s) }}</option>
-        </select>
-        <div v-if="errors.semester && touched.semester" class="form-error">
-          {{ errors.semester }}
         </div>
       </div>
       <div class="form-group">
@@ -334,38 +293,13 @@ function resetForm() {
           class="form-control"
           :class="{ invalid: errors.credit && touched.credit }"
           min="0.5"
-          max="10"
+          max="20"
           step="0.5"
-          placeholder="0.5 - 10"
+          placeholder="按本人培养方案填写"
           @blur="markTouched('credit')"
+          @input="onFieldInput('credit')"
         />
         <div v-if="errors.credit && touched.credit" class="form-error">{{ errors.credit }}</div>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="f-hours">总学时<span class="required">*</span></label>
-        <input
-          id="f-hours"
-          v-model="form.hours"
-          type="number"
-          class="form-control"
-          :class="{ invalid: errors.hours && touched.hours }"
-          min="1"
-          max="400"
-          step="1"
-          placeholder="1 - 400"
-          @blur="markTouched('hours')"
-        />
-        <div v-if="errors.hours && touched.hours" class="form-error">{{ errors.hours }}</div>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <span class="form-label">考核方式<span class="required">*</span></span>
-      <div class="radio-group" role="radiogroup" aria-label="考核方式">
-        <label v-for="a in assessments" :key="a" class="radio-item">
-          <input v-model="form.assessment" type="radio" :value="a" name="assessment" />
-          {{ a }}
-        </label>
       </div>
     </div>
 
@@ -379,12 +313,23 @@ function resetForm() {
           v-model="form.day"
           class="form-control"
           :class="{ invalid: errors.day && touched.day }"
-          @blur="markTouched('day')"
+          @change="markTouched('day')"
         >
           <option value="" disabled>请选择</option>
-          <option v-for="(d, i) in dayOptions" :key="d" :value="i + 1">{{ d }}</option>
+          <option v-for="(d, i) in WEEKDAYS" :key="d" :value="i + 1">{{ d }}</option>
         </select>
         <div v-if="errors.day && touched.day" class="form-error">{{ errors.day }}</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="f-room">上课地点（选填）</label>
+        <input
+          id="f-room"
+          v-model="form.room"
+          type="text"
+          class="form-control"
+          placeholder="例如：津南公教楼 A201"
+          maxlength="30"
+        />
       </div>
       <div class="form-group">
         <label class="form-label" for="f-start-period"
@@ -395,7 +340,7 @@ function resetForm() {
           v-model="form.startPeriod"
           class="form-control"
           :class="{ invalid: errors.startPeriod && touched.startPeriod }"
-          @blur="markTouched('startPeriod')"
+          @change="markTouched('startPeriod')"
         >
           <option value="" disabled>请选择</option>
           <option v-for="p in periodOptions" :key="p" :value="p">第 {{ p }} 节</option>
@@ -411,7 +356,7 @@ function resetForm() {
           v-model="form.endPeriod"
           class="form-control"
           :class="{ invalid: errors.endPeriod && touched.endPeriod }"
-          @blur="markTouched('endPeriod')"
+          @change="markTouched('endPeriod')"
         >
           <option value="" disabled>请选择</option>
           <option v-for="p in periodOptions" :key="p" :value="p">第 {{ p }} 节</option>
@@ -427,9 +372,9 @@ function resetForm() {
           v-model="form.startWeek"
           class="form-control"
           :class="{ invalid: errors.startWeek && touched.startWeek }"
-          @blur="markTouched('startWeek')"
+          @change="markTouched('startWeek')"
         >
-          <option v-for="wk in weekOptions" :key="wk" :value="wk">第 {{ wk }} 周</option>
+          <option v-for="w in weekOptions" :key="w" :value="w">第 {{ w }} 周</option>
         </select>
         <div v-if="errors.startWeek && touched.startWeek" class="form-error">
           {{ errors.startWeek }}
@@ -442,22 +387,22 @@ function resetForm() {
           v-model="form.endWeek"
           class="form-control"
           :class="{ invalid: errors.endWeek && touched.endWeek }"
-          @blur="markTouched('endWeek')"
+          @change="markTouched('endWeek')"
         >
-          <option v-for="wk in weekOptions" :key="wk" :value="wk">第 {{ wk }} 周</option>
+          <option v-for="w in weekOptions" :key="w" :value="w">第 {{ w }} 周</option>
         </select>
         <div v-if="errors.endWeek && touched.endWeek" class="form-error">{{ errors.endWeek }}</div>
       </div>
     </div>
 
     <div class="form-group">
-      <label class="form-label" for="f-desc">课程简介（选填）</label>
+      <label class="form-label" for="f-desc">备注（选填）</label>
       <textarea
         id="f-desc"
         v-model="form.description"
         class="form-control"
         maxlength="120"
-        placeholder="简单介绍一下这门课要学什么（120 字以内）"
+        placeholder="补充说明（120 字以内），例如：与原课程时间冲突已与老师协商调课"
       />
     </div>
 
@@ -478,7 +423,7 @@ function resetForm() {
 
 <style scoped>
 .custom-form {
-  max-width: 860px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 24px 28px;
 }
@@ -514,23 +459,8 @@ function resetForm() {
   border-bottom: 1px solid var(--c-border);
 }
 
-.radio-group {
-  display: flex;
-  gap: 18px;
-}
-
-.radio-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14.5px;
-  cursor: pointer;
-}
-
-.radio-item input {
-  accent-color: var(--c-primary);
-  width: 16px;
-  height: 16px;
+.form-row {
+  grid-template-columns: 1fr 1fr;
 }
 
 .global-error {
@@ -538,7 +468,7 @@ function resetForm() {
   align-items: flex-start;
   gap: 8px;
   background: var(--c-danger-soft);
-  border: 1px solid #f6b3b0;
+  border: 1px solid #f3b9b4;
   color: var(--c-danger);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
@@ -551,5 +481,11 @@ function resetForm() {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

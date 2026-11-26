@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { Course } from '@/types'
+import type { Offering, SelectedCourse } from '@/types'
+import { SEMESTER_CREDIT_CAP } from '@/constants'
 import { usePlannerStore } from '@/stores/planner'
+import { useTermStore } from '@/stores/term'
 import TimetableGrid from '@/components/timetable/TimetableGrid.vue'
 import TimetableListView from '@/components/timetable/TimetableListView.vue'
 import SelectedCourseList from '@/components/timetable/SelectedCourseList.vue'
@@ -10,32 +12,33 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import AppIcon from '@/components/common/AppIcon.vue'
 
 const planner = usePlannerStore()
-const detailCourse = ref<Course | null>(null)
+const termStore = useTermStore()
+
+const detailCourse = ref<Offering | null>(null)
+
+const items = computed<SelectedCourse[]>(() => planner.byTerm.get(termStore.currentTermId) ?? [])
+const stats = computed(() => planner.termStats(termStore.currentTermId))
+const conflicts = computed(() => planner.conflictsOfTerm(termStore.currentTermId))
 
 const statCards = computed(() => [
+  { label: '本学期已选', value: `${stats.value.count} 门`, icon: 'book', tone: 'primary' },
   {
-    label: '已选课程',
-    value: `${planner.selected.length} 门`,
-    icon: 'book',
-    tone: 'primary',
+    label: '已录学分',
+    value: `${stats.value.entered} / ${SEMESTER_CREDIT_CAP}`,
+    icon: 'target',
+    tone: stats.value.overCap ? 'danger' : 'success',
   },
   {
-    label: '总学分',
-    value: `${planner.totalCredits} / 156`,
-    icon: 'target',
-    tone: 'success',
+    label: '待补学分',
+    value: `${stats.value.pending} 门`,
+    icon: 'edit',
+    tone: stats.value.pending > 0 ? 'warning' : 'success',
   },
   {
     label: '时间冲突',
-    value: `${planner.conflictPairs.length} 处`,
+    value: `${conflicts.value.length} 处`,
     icon: 'alert',
-    tone: planner.conflictPairs.length > 0 ? 'danger' : 'success',
-  },
-  {
-    label: '前置课程提醒',
-    value: `${planner.prereqWarnings.size} 门`,
-    icon: 'clock',
-    tone: planner.prereqWarnings.size > 0 ? 'warning' : 'success',
+    tone: conflicts.value.length > 0 ? 'danger' : 'success',
   },
 ])
 </script>
@@ -46,7 +49,8 @@ const statCards = computed(() => [
       <div>
         <h1 class="page-title">模拟课表</h1>
         <p class="page-subtitle">
-          以周课表网格查看已选课程。加入课程时系统会拦截时间冲突；手机端自动切换为按天列表视图。
+          {{ termStore.currentTerm.label }} · 周一至周日、1-14 节真实排课。加入课程时拦截时间冲突；
+          学分需按本人培养方案在右侧录入。
         </p>
       </div>
       <RouterLink to="/courses" class="btn btn-primary">
@@ -67,26 +71,26 @@ const statCards = computed(() => [
 
     <div class="tt-layout">
       <section class="card tt-main-card" aria-label="周课表">
-        <div v-if="planner.courses.length === 0" class="tt-empty">
+        <div v-if="items.length === 0" class="tt-empty">
           <EmptyState
             icon="calendar"
-            title="课表还是空的"
+            :title="`${termStore.currentTerm.label}课表还是空的`"
             hint="加入几门课程后，这里会生成你的周课表"
           >
             <RouterLink to="/courses" class="btn btn-primary btn-sm">浏览课程库</RouterLink>
           </EmptyState>
         </div>
         <template v-else>
-          <TimetableGrid :courses="planner.courses" @select="detailCourse = $event" />
-          <TimetableListView :courses="planner.courses" @select="detailCourse = $event" />
-          <p v-if="planner.conflictPairs.length" class="tt-warning">
+          <TimetableGrid :courses="items.map((i) => i.course)" @select="detailCourse = $event" />
+          <TimetableListView :items="items" />
+          <p v-if="conflicts.length" class="tt-warning">
             <AppIcon name="alert" :size="14" />
-            检测到 {{ planner.conflictPairs.length }} 处时间冲突（红色虚线框），请移除冲突课程。
+            检测到 {{ conflicts.length }} 处时间冲突（红色虚线框），请移除冲突课程。
           </p>
         </template>
       </section>
 
-      <SelectedCourseList @select="detailCourse = $event" />
+      <SelectedCourseList :items="items" @select="detailCourse = $event.course" />
     </div>
 
     <CourseDetailModal :course="detailCourse" @close="detailCourse = null" />
@@ -98,7 +102,7 @@ const statCards = computed(() => [
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .stat-card {
@@ -111,22 +115,22 @@ const statCards = computed(() => [
 .stat-card.primary {
   color: var(--c-primary);
   background: var(--c-primary-soft);
-  border-color: #bac8ff;
+  border-color: #e3cbdb;
 }
 .stat-card.success {
   color: var(--c-success);
   background: var(--c-success-soft);
-  border-color: #a6e9cc;
+  border-color: #b3e3d2;
 }
 .stat-card.warning {
-  color: var(--c-warning);
+  color: #8a5a00;
   background: var(--c-warning-soft);
-  border-color: #ffd8a8;
+  border-color: #f0d4a8;
 }
 .stat-card.danger {
   color: var(--c-danger);
   background: var(--c-danger-soft);
-  border-color: #f6b3b0;
+  border-color: #f3b9b4;
 }
 
 .stat-value {
@@ -142,7 +146,7 @@ const statCards = computed(() => [
 
 .tt-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 16px;
   align-items: start;
 }

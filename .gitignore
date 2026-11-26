@@ -7,3 +7,9 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# 数据原始文件（体积大，可按 docs/05 的官方链接与脚本重新获取/解析）
+data-nankai/*.csv
+data-nankai/nankai_courses_*.json
+data-nankai/选课手册*.pdf
+data-nankai/选课攻略节选.zip

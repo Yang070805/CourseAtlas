@@ -1,62 +1,65 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { CourseCategory } from '@/types'
+import { ALL_CATEGORIES } from '@/constants'
 import { usePlannerStore } from '@/stores/planner'
-import { semesterLabel } from '@/utils/credit'
+import { useTermStore } from '@/stores/term'
 import BaseTag from '@/components/common/BaseTag.vue'
 import AppIcon from '@/components/common/AppIcon.vue'
 
 const planner = usePlannerStore()
-
-const categories: CourseCategory[] = [
-  '通识必修',
-  '通识选修',
-  '学科基础',
-  '专业必修',
-  '专业选修',
-  '实践环节',
-]
+const termStore = useTermStore()
 
 const grouped = computed(() =>
-  categories.map((cat) => ({
-    category: cat,
-    items: planner.courses
-      .filter((c) => c.category === cat)
-      .sort((a, b) => a.semester - b.semester),
-  })),
+  ALL_CATEGORIES.map((category: CourseCategory) => {
+    const items = planner.selected.filter((s) => s.course.category === category)
+    return {
+      category,
+      items: [...items].sort(
+        (a, b) =>
+          a.termId.localeCompare(b.termId) || a.course.name.localeCompare(b.course.name, 'zh-CN'),
+      ),
+      entered: Math.round(items.reduce((sum, i) => sum + (i.credit ?? 0), 0) * 10) / 10,
+    }
+  }).filter((g) => g.items.length > 0),
 )
 
-const totalRows = computed(() => grouped.value.reduce((n, g) => n + g.items.length, 0))
+const totalCount = computed(() => planner.selected.length)
+
+function termLabel(termId: string) {
+  return termStore.terms.find((t) => t.id === termId)?.season === '秋' ? '秋' : '春'
+}
 </script>
 
 <template>
   <section class="card" aria-label="已选课程分类明细">
     <div class="card-title">
-      <AppIcon name="book" :size="16" />
-      已选课程明细（{{ totalRows }} 门）
+      <AppIcon name="layers" :size="16" />
+      已选课程明细（全部学期 {{ totalCount }} 门）
     </div>
 
-    <div v-if="totalRows === 0" class="none">
-      还没有已选课程，去课程库挑几门吧。
-      <RouterLink to="/courses" class="goto">去选课 →</RouterLink>
+    <div v-if="totalCount === 0" class="none">
+      还没有选课记录。
+      <RouterLink to="/courses" class="goto">去课程库选课 →</RouterLink>
     </div>
 
     <div v-for="group in grouped" :key="group.category" class="cat-group">
-      <template v-if="group.items.length">
-        <div class="cat-group-head">
-          <BaseTag :category="group.category" />
-          <span class="cat-group-credits">
-            {{ group.items.reduce((s, c) => s + c.credit, 0) }} 学分
+      <div class="cat-group-head">
+        <BaseTag :category="group.category" />
+        <span class="cat-group-credits">
+          {{ group.items.length }} 门 · 已录 {{ group.entered }} 学分
+        </span>
+      </div>
+      <ul class="detail-list">
+        <li v-for="item in group.items" :key="item.id">
+          <span class="d-term">{{ termLabel(item.termId) }}</span>
+          <span class="d-name">{{ item.course.name }}</span>
+          <span class="d-teacher">{{ item.course.teacher || '待定' }}</span>
+          <span class="d-credit" :class="{ missing: item.credit === null }">
+            {{ item.credit === null ? '待补' : `${item.credit} 学分` }}
           </span>
-        </div>
-        <ul class="detail-list">
-          <li v-for="c in group.items" :key="c.id">
-            <span class="d-name">{{ c.name }}</span>
-            <span class="d-sem">{{ semesterLabel(c.semester) }}</span>
-            <span class="d-credit">{{ c.credit }} 学分</span>
-          </li>
-        </ul>
-      </template>
+        </li>
+      </ul>
     </div>
   </section>
 </template>
@@ -109,19 +112,50 @@ const totalRows = computed(() => grouped.value.reduce((n, g) => n + g.items.leng
   border-bottom: none;
 }
 
+.d-term {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-size: 11.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .d-name {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 500;
 }
 
-.d-sem {
+.d-teacher {
   color: var(--c-muted);
   font-size: 12.5px;
+  white-space: nowrap;
 }
 
 .d-credit {
   font-weight: 700;
   color: var(--c-primary);
   white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.d-credit.missing {
+  color: var(--c-muted);
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .d-teacher {
+    display: none;
+  }
 }
 </style>
