@@ -118,7 +118,13 @@ onBeforeUnmount(() => {
               <span class="tp-sem-season">{{ t.seasonLabel }}</span>
             </span>
             <span v-if="t.isCurrent" class="tp-flag">当前</span>
-            <span v-else-if="t.hasData" class="tp-flag data">{{ t.courseCount }} 班</span>
+            <span
+              v-else-if="t.hasData"
+              class="tp-flag data"
+              :title="`该学期选课手册解析出 ${t.courseCount} 条开课记录（教学班），非个人已选课程数`"
+            >
+              {{ t.courseCount }} 教学班
+            </span>
             <span v-else class="tp-flag muted">无数据</span>
           </button>
         </div>
@@ -126,7 +132,7 @@ onBeforeUnmount(() => {
 
       <p class="tp-foot">
         学期 1 = 秋冬、学期 2 = 春夏、学期 3 =
-        暑假小学期；"无数据"表示教务部尚未公开该学期选课手册。
+        暑假小学期。绿色数字是该学期已导入的<b>教学班数量</b>（来自教务部公开选课手册：一门课可有多个教学班，非个人已选课程数）；"无数据"表示该学期手册尚未公开。
       </p>
     </div>
   </div>

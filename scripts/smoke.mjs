@@ -312,6 +312,15 @@ async function main() {
 
   // 选 2024-2025 学年第二学期（有数据）
   await page.locator('.tp-year', { hasText: '2024-2025' }).click()
+  const dataFlag = await page
+    .locator('.tp-semester', { hasText: '学期2' })
+    .locator('.tp-flag.data')
+    .innerText()
+  check(
+    '有数据学期标注教学班数量（4525 教学班）',
+    dataFlag.includes('教学班') && dataFlag.includes('4525'),
+    `(${dataFlag})`,
+  )
   await page.locator('.tp-semester', { hasText: '学期2' }).click()
   await page.waitForFunction(
     () => document.querySelector('.filter-summary')?.textContent?.includes('4525'),
