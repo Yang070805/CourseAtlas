@@ -79,6 +79,22 @@ function handleAdd(course: Offering) {
       </div>
     </div>
 
+    <!-- 该学期无公开数据 -->
+    <div v-else-if="courseStore.loadState === 'empty'" class="no-data card">
+      <EmptyState
+        icon="download"
+        :title="`${termStore.currentTerm.label}暂无公开课程数据`"
+        hint="教务部未公开该学期的选课手册。你可以切换到有数据的学期，或在自定义课程中手动录入本学期课程。"
+      >
+        <div class="no-data-actions">
+          <button class="btn btn-ghost btn-sm" @click="termStore.setTerm('2026-2027-1')">
+            回到 2026-2027 学年第一学期
+          </button>
+          <RouterLink to="/custom" class="btn btn-primary btn-sm">录入自定义课程</RouterLink>
+        </div>
+      </EmptyState>
+    </div>
+
     <!-- 加载失败 -->
     <div v-else-if="courseStore.loadState === 'error'" class="load-error card">
       <AppIcon name="alert" :size="22" />
@@ -126,6 +142,17 @@ function handleAdd(course: Offering) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
   gap: 16px;
+}
+
+.no-data {
+  margin-top: 18px;
+}
+
+.no-data-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .load-error {

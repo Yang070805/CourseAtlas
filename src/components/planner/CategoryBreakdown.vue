@@ -27,7 +27,9 @@ const grouped = computed(() =>
 const totalCount = computed(() => planner.selected.length)
 
 function termLabel(termId: string) {
-  return termStore.terms.find((t) => t.id === termId)?.season === '秋' ? '秋' : '春'
+  const term = termStore.terms.find((t) => t.id === termId)
+  if (!term) return '—'
+  return `学期${term.semesterNo}`
 }
 </script>
 

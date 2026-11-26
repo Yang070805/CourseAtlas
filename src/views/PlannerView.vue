@@ -1,10 +1,20 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { usePlannerStore } from '@/stores/planner'
 import { useTermStore } from '@/stores/term'
 import RequirementPanel from '@/components/planner/RequirementPanel.vue'
 import TermOverview from '@/components/planner/TermOverview.vue'
 import CategoryBreakdown from '@/components/planner/CategoryBreakdown.vue'
 
 const termStore = useTermStore()
+const planner = usePlannerStore()
+
+/** 有选课记录的其他学期（按时间顺序展示，避免罗列全部 21 个学期空卡片） */
+const recordTerms = computed(() =>
+  termStore.terms
+    .filter((t) => t.id !== termStore.currentTermId && planner.byTerm.has(t.id))
+    .sort((a, b) => a.id.localeCompare(b.id)),
+)
 </script>
 
 <template>
@@ -24,7 +34,7 @@ const termStore = useTermStore()
     <div class="planner-grid">
       <div class="planner-col">
         <TermOverview :term-id="termStore.currentTermId" />
-        <TermOverview v-for="t in termStore.historyTerms" :key="t.id" :term-id="t.id" />
+        <TermOverview v-for="t in recordTerms" :key="t.id" :term-id="t.id" />
       </div>
       <CategoryBreakdown />
     </div>

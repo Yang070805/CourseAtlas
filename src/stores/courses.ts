@@ -2,7 +2,7 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import type { CourseCategory, Offering, Review, SortBy, SortOrder } from '@/types'
-import { REVIEWS_URL, TERM_DATA_URL } from '@/constants'
+import { REVIEWS_URL, TERM_DATA_URL, TERMS } from '@/constants'
 import { useTermStore } from './term'
 
 interface TermPayload {
@@ -20,7 +20,7 @@ interface ReviewsPayload {
   byName: Record<string, Review[]>
 }
 
-type LoadState = 'idle' | 'loading' | 'ready' | 'error'
+type LoadState = 'idle' | 'loading' | 'ready' | 'error' | 'empty'
 
 export const PAGE_SIZE = 12
 
@@ -51,6 +51,13 @@ export const useCourseStore = defineStore('courses', () => {
   const loadError = computed(() => loadErrors.value[currentTermId.value] ?? '')
 
   async function loadTerm(termId: string) {
+    // 未导入公开数据的学期：不请求接口，直接标记为"无数据"
+    const meta = TERMS.find((t) => t.id === termId)
+    if (!meta?.hasData) {
+      loadStates.value = { ...loadStates.value, [termId]: 'empty' }
+      caches.value = { ...caches.value, [termId]: [] }
+      return
+    }
     if (loadStates.value[termId] === 'loading' || caches.value[termId]) return
     loadStates.value = { ...loadStates.value, [termId]: 'loading' }
     try {

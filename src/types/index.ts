@@ -64,11 +64,25 @@ export interface SelectedCourse {
   addedAt: number
 }
 
+/** 学期：学年 + 学期号（1=秋冬、2=春夏、3=暑假小学期） */
 export interface Term {
+  /** 例：2026-2027-1 */
   id: string
+  /** 学年，例：2026-2027 */
+  academicYear: string
+  /** 学期号 1-3 */
+  semesterNo: 1 | 2 | 3
+  /** 完整名称，例：2026-2027 学年第一学期（秋冬） */
   label: string
-  season: '秋' | '春'
+  /** 简要标签，例：2026-2027-1 */
+  shortLabel: string
+  /** 季节说明 */
+  seasonLabel: '秋冬' | '春夏' | '暑假小学期'
   isCurrent: boolean
+  /** 是否已导入该学期公开课程数据 */
+  hasData: boolean
+  /** 该学期教学班数（仅 hasData 时有值） */
+  courseCount?: number
 }
 
 export type AddResult =

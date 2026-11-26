@@ -126,6 +126,7 @@ textarea {
   font-weight: 700;
   color: var(--c-text);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .brand svg {
@@ -143,6 +144,13 @@ textarea {
   display: flex;
   gap: 4px;
   flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.main-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .main-nav a {
@@ -150,6 +158,8 @@ textarea {
   border-radius: 999px;
   color: var(--c-text-secondary);
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition:
     background 0.15s,
     color 0.15s;
@@ -169,6 +179,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .header-credit {
@@ -184,37 +195,8 @@ textarea {
   white-space: nowrap;
 }
 
-/* 学期切换器 */
-.term-select {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--c-border);
-  border-radius: 999px;
-  padding: 4px 10px;
-  background: var(--c-surface);
-  color: var(--c-text-secondary);
-  font-size: 13px;
-}
-
-.term-select select {
-  border: none;
-  background: transparent;
-  color: var(--c-text);
-  font-weight: 600;
-  font-size: 13px;
-  padding: 2px 0;
-  outline: none;
-  cursor: pointer;
-}
-
-.term-current-tag {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--c-primary);
-  background: var(--c-primary-soft);
-  border-radius: 999px;
-  padding: 1px 8px;
+.header-credit .credit-short {
+  display: none;
 }
 
 .app-main {
@@ -794,10 +776,6 @@ textarea.form-control {
     margin-left: auto;
   }
 
-  .term-current-tag {
-    display: none;
-  }
-
   .tab-bar {
     display: flex;
   }
@@ -830,6 +808,40 @@ textarea.form-control {
   .header-credit {
     font-size: 12px;
     padding: 5px 10px;
+  }
+
+  .credit-full {
+    display: none;
+  }
+
+  .header-credit .credit-short {
+    display: inline;
+  }
+}
+
+/* ---------- 头部窄屏收缩（导航永不换行） ---------- */
+@media (max-width: 1280px) {
+  .brand-sub {
+    display: none;
+  }
+
+  .main-nav a {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+
+  .app-header-inner {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .credit-full {
+    display: none;
+  }
+
+  .header-credit .credit-short {
+    display: inline;
   }
 }
 

@@ -16,6 +16,16 @@ const term = computed(() => termStore.terms.find((t) => t.id === props.termId))
 const items = computed(() => planner.byTerm.get(props.termId) ?? [])
 const stats = computed(() => planner.termStats(props.termId))
 const shown = computed(() => (expanded.value ? items.value : items.value.slice(0, 4)))
+
+/** 相对当前学期的状态标签 */
+const phaseLabel = computed(() => {
+  const t = term.value
+  if (!t) return ''
+  if (t.isCurrent) return '当前学期 · 在选'
+  const currentId = termStore.currentTermId
+  const official = termStore.terms.find((x) => x.isCurrent)?.id ?? currentId
+  return t.id < official ? '历史学期 · 已修记录' : '未来学期 · 提前规划'
+})
 </script>
 
 <template>
@@ -28,7 +38,7 @@ const shown = computed(() => (expanded.value ? items.value : items.value.slice(0
       <div class="tc-title-wrap">
         <h3 class="tc-title">{{ term?.label }}</h3>
         <span v-if="term?.isCurrent" class="tc-tag">当前学期 · 在选</span>
-        <span v-else class="tc-tag history">历史学期 · 已修记录</span>
+        <span v-else class="tc-tag history">{{ phaseLabel }}</span>
       </div>
       <div class="tc-stats">
         <span>{{ stats.count }} 门</span>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CourseAtlas 冒烟测试（v2 · 南开真实数据 + 学期切换）
  *
  * 用法（需先启动开发服务器）：
@@ -18,7 +18,6 @@ const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:5173'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SHOT_DIR = join(__dirname, '..', 'screenshots')
 const CURRENT_TERM = '2026-2027-1'
-const HISTORY_TERM = '2024-2025-2'
 
 let passed = 0
 let failed = 0
@@ -276,14 +275,34 @@ async function main() {
   await page.waitForSelector('.total-card', { timeout: 15000 })
   const plannerText = await page.locator('.main-content, main').innerText()
   check('规划页显示示例要求说明', plannerText.includes('示例配置'))
-  check('历史学期卡片存在', plannerText.includes('2024-2025 学年第二学期'))
+  check('规划页显示当前学期卡片', plannerText.includes('2026-2027 学年第一学期'))
   check('分类明细含已选课程', plannerText.includes(pair.name))
   await page.screenshot({ path: join(SHOT_DIR, '02-planner-desktop.png') })
 
-  console.log('\n[5] 学期切换（历史学期查询）')
+  console.log('\n[5] 学期切换（学年 × 三学期选择面板）')
   await page.goto(`${BASE}/courses`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('.course-card', { timeout: 15000 })
-  await page.locator('.term-select select').selectOption(HISTORY_TERM)
+
+  await page.locator('.term-trigger').click()
+  await page.waitForSelector('.term-panel', { timeout: 10000 })
+  const yearTexts = (await page.locator('.tp-year').allInnerTexts()).map((t) => t.trim())
+  check(
+    '学年从 2020-2021 起连续排列',
+    yearTexts[0] === '2020-2021' && yearTexts.length >= 7,
+    `(${yearTexts.join(',')})`,
+  )
+  const semTexts = (await page.locator('.tp-semester').allInnerTexts()).map((t) =>
+    t.replace(/\s+/g, ''),
+  )
+  check(
+    '每学年提供三学期（秋冬/春夏/暑假小学期）',
+    semTexts.length === 3 && semTexts[0].includes('秋冬') && semTexts[2].includes('暑假小学期'),
+    `(${semTexts.join('|')})`,
+  )
+
+  // 选 2024-2025 学年第二学期（有数据）
+  await page.locator('.tp-year', { hasText: '2024-2025' }).click()
+  await page.locator('.tp-semester', { hasText: '学期2' }).click()
   await page.waitForFunction(
     () => document.querySelector('.filter-summary')?.textContent?.includes('4525'),
     null,
@@ -298,13 +317,74 @@ async function main() {
   const historyCredit = await page.locator('.header-credit').innerText()
   check('历史学期独立统计（0 门）', historyCredit.includes('0 门'), `(${historyCredit.trim()})`)
 
-  await page.locator('.term-select select').selectOption(CURRENT_TERM)
+  // 在历史学期加一门课，验证学期记录独立保存与规划页多学期卡片
+  await page.fill('.search-input', '高等数学')
+  await page.waitForTimeout(500)
+  await page
+    .locator('.course-card')
+    .first()
+    .getByRole('button', { name: /加入课表/ })
+    .click()
+  await page.waitForTimeout(500)
+  check('历史学期可以独立选课', (await page.locator('.header-credit').innerText()).includes('1 门'))
+  await page.goto(`${BASE}/planner`, { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('.total-card', { timeout: 15000 })
+  const plannerHistoryText = await page.locator('main').innerText()
+  check('规划页出现历史学期记录卡', plannerHistoryText.includes('2024-2025 学年第二学期'))
+  await page.goto(`${BASE}/courses`, { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('.course-card', { timeout: 15000 })
+
+  // 选一个无公开数据的学期
+  await page.locator('.term-trigger').click()
+  await page.waitForSelector('.term-panel', { timeout: 10000 })
+  await page.locator('.tp-year', { hasText: '2022-2023' }).click()
+  await page.locator('.tp-semester', { hasText: '学期2' }).click()
+  await page.waitForSelector('.no-data', { timeout: 10000 })
+  check(
+    '无数据学期显示明确提示',
+    (await page.locator('.no-data').innerText()).includes('暂无公开课程数据'),
+  )
+
+  // 回到当前学期
+  await page.locator('.term-trigger').click()
+  await page.waitForSelector('.term-panel', { timeout: 10000 })
+  await page.getByRole('button', { name: '回到当前学期' }).click()
   await page.waitForFunction(
     () => document.querySelector('.filter-summary')?.textContent?.includes('4876'),
     null,
     { timeout: 15000 },
   )
   check('切回当前学期正常', (await page.locator('.filter-summary').innerText()).includes('4876'))
+
+  console.log('\n[5.1] 头部排版：导航不换行、窄屏不溢出')
+  const navCheck = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('.main-nav a')).map((a) => ({
+      text: a.textContent?.trim() ?? '',
+      height: Math.round(a.getBoundingClientRect().height),
+    })),
+  )
+  check(
+    '1440 宽下导航单行显示',
+    navCheck.every((n) => n.height <= 44),
+    JSON.stringify(navCheck),
+  )
+  await page.setViewportSize({ width: 1024, height: 800 })
+  await page.waitForTimeout(400)
+  const narrowCheck = await page.evaluate(() => ({
+    heights: Array.from(document.querySelectorAll('.main-nav a')).map((a) =>
+      Math.round(a.getBoundingClientRect().height),
+    ),
+    overflow: (() => {
+      const inner = document.querySelector('.app-header-inner')
+      return inner ? inner.scrollWidth - inner.clientWidth : 0
+    })(),
+  }))
+  check(
+    '1024 宽下导航不换行且头部不溢出',
+    narrowCheck.heights.every((h) => h <= 44) && narrowCheck.overflow <= 2,
+    JSON.stringify(narrowCheck),
+  )
+  await page.setViewportSize({ width: 1440, height: 900 })
 
   console.log('\n[6] 课程评价（枝上攻略）')
   await page.fill('.search-input', '泥人张')

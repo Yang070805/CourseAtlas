@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useTermStore } from '@/stores/term'
 import { usePlannerStore } from '@/stores/planner'
 import AppIcon from '@/components/common/AppIcon.vue'
+import TermSwitcher from '@/components/common/TermSwitcher.vue'
 import ToastList from '@/components/common/ToastList.vue'
 
 const termStore = useTermStore()
@@ -10,11 +11,13 @@ const planner = usePlannerStore()
 
 const stats = computed(() => planner.termStats(termStore.currentTermId))
 
-const creditSummary = computed(() => {
+const creditFull = computed(() => {
   const s = stats.value
   const base = `${s.count} 门 · ${s.entered} 学分`
   return s.pending > 0 ? `${base}（${s.pending} 门待补）` : base
 })
+
+const creditShort = computed(() => `${stats.value.entered} 学分`)
 
 const navItems = [
   { to: '/courses', label: '课程库', icon: 'book' },
@@ -44,23 +47,12 @@ const navItems = [
       </nav>
 
       <div class="header-tools">
-        <label class="term-select" title="切换学期（数据来自教务部选课手册）">
-          <AppIcon name="calendar" :size="14" />
-          <select
-            :value="termStore.currentTermId"
-            aria-label="选择学期"
-            @change="termStore.setTerm(($event.target as HTMLSelectElement).value)"
-          >
-            <option v-for="t in termStore.terms" :key="t.id" :value="t.id">
-              {{ t.label }}{{ t.isCurrent ? '（当前）' : '' }}
-            </option>
-          </select>
-          <span v-if="termStore.currentTerm.isCurrent" class="term-current-tag">在选</span>
-        </label>
+        <TermSwitcher />
 
-        <RouterLink to="/planner" class="header-credit" :title="creditSummary">
+        <RouterLink to="/planner" class="header-credit" :title="creditFull">
           <AppIcon name="graduation" :size="14" />
-          <span>{{ creditSummary }}</span>
+          <span class="credit-full">{{ creditFull }}</span>
+          <span class="credit-short">{{ creditShort }}</span>
         </RouterLink>
       </div>
     </div>
